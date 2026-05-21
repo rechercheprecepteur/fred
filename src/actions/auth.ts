@@ -16,6 +16,124 @@ const JWT_SECRET = process.env.JWT_SECRET || 'votre-secret-tres-long-et-complexe
 const COOKIE_NAME = 'auth-token'
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// ============ 🆕 CACHE AVANCÉ ============
+// Cache global avec Map pour supporter plusieurs utilisateurs
+const userCacheMap = new Map<string, { user: any; timestamp: number }>()
+const CACHE_DURATION = 30000 // 30 secondes (ajustable)
+const pendingRequests = new Map<string, Promise<any>>() // Déduplication
+
+// 🆕 Fonction légère pour obtenir juste l'ID utilisateur (optimisée)
+async function getUserIdFromToken(): Promise<string | null> {
+  const token = await getTokenFromCookie()
+  if (!token) return null
+  
+  const decoded = verifyToken(token)
+  return decoded?.userId || null
+}
+
+// ============ 🔧 getCurrentUser OPTIMISÉ ============
+export async function getCurrentUser(forceRefresh = false): Promise<AuthResult> {
+  try {
+    const token = await getTokenFromCookie()
+    if (!token) {
+      return { error: 'Non authentifié' }
+    }
+
+    const decoded = verifyToken(token)
+    if (!decoded) {
+      await removeAuthCookie()
+      userCacheMap.delete(token) // Nettoyer le cache
+      return { error: 'Session expirée' }
+    }
+
+    const userId = decoded.userId
+
+    // Vérifier le cache (si pas forceRefresh)
+    if (!forceRefresh) {
+      const cached = userCacheMap.get(userId)
+      if (cached && (Date.now() - cached.timestamp) < CACHE_DURATION) {
+        return { success: true, user: cached.user }
+      }
+    }
+
+    // Déduplication : si une requête est déjà en cours, attendre son résultat
+    const pendingKey = `user-${userId}`
+    if (pendingRequests.has(pendingKey)) {
+      return await pendingRequests.get(pendingKey)!
+    }
+
+    // Créer la promesse de requête
+    const requestPromise = (async () => {
+      try {
+        const { data: user, error } = await supabase
+          .from('users')
+          .select('id, username, email, role, genre, photo_profil, created_at, updated_at')
+          .eq('id', userId)
+          .single()
+
+        if (error || !user) {
+          await removeAuthCookie()
+          userCacheMap.delete(userId)
+          return { error: 'Utilisateur non trouvé' }
+        }
+
+        // Rafraîchir le token (une seule fois par période de cache)
+        const newToken = generateToken(user.id, user.role)
+        await setAuthCookie(newToken)
+
+        // Mettre en cache
+        userCacheMap.set(userId, { user, timestamp: Date.now() })
+
+        return { success: true, user }
+      } finally {
+        // Nettoyer la requête en attente
+        pendingRequests.delete(pendingKey)
+      }
+    })()
+
+    // Stocker la promesse pour déduplication
+    pendingRequests.set(pendingKey, requestPromise)
+    
+    return await requestPromise
+
+  } catch (error) {
+    console.error('Exception getCurrentUser:', error)
+    return { error: 'Erreur serveur' }
+  }
+}
+
+// 🆕 Fonction utilitaire exportée
+export async function getCurrentUserId(): Promise<string | null> {
+  return await getUserIdFromToken()
+}
+export async function invalidateUserCache(userId?: string) {
+  if (userId) {
+    userCacheMap.delete(userId)
+  } else {
+    userCacheMap.clear()
+  }
+}
+
+
+
+
+
+
+
 export async function changePassword(oldPassword: string, newPassword: string): Promise<AuthResult> {
   try {
     const session = await getCurrentUser()
@@ -76,30 +194,7 @@ async function checkAdminAccess(): Promise<AuthResult> {
   return { success: true, user: session.user }
 }
 
-// export async function getAllUsers(): Promise<{
-//   success?: boolean
-//   error?: string
-//   users?: any[]
-//   total?: number
-// }> {
-//   try {
-//     const access = await checkAdminAccess()
-//     if (access.error) return { error: access.error }
 
-//     const { data: users, error, count } = await supabase
-//       .from('users')
-//       .select('id, username, email, role, genre, photo_profil, created_at, updated_at', { count: 'exact' })
-//       .order('created_at', { ascending: false })
-
-//     if (error) return { error: 'Erreur lors de la récupération des utilisateurs' }
-
-//     return { success: true, users, total: count || 0 }
-
-//   } catch (error) {
-//     console.error('Exception getAllUsers:', error)
-//     return { error: 'Erreur serveur' }
-//   }
-// }
 
 export async function updateUserRole(userId: string, newRole: string): Promise<AuthResult> {
   try {
@@ -443,19 +538,19 @@ function verifyToken(token: string): { userId: string; role: string } | null {
   }
 }
 
-// ============ 🆕 NOUVEAU: Cache utilisateur ============
-// Ce cache est réinitialisé à chaque requête (comportement normal des Server Actions)
+// // ============ 🆕 NOUVEAU: Cache utilisateur ============
+// // Ce cache est réinitialisé à chaque requête (comportement normal des Server Actions)
 let userCache: { user: any; timestamp: number } | null = null
-const CACHE_DURATION = 2000 // 2 secondes
+// const CACHE_DURATION = 2000 // 2 secondes
 
-// 🆕 Fonction légère pour obtenir juste l'ID utilisateur
-async function getUserIdFromToken(): Promise<string | null> {
-  const token = await getTokenFromCookie()
-  if (!token) return null
+// // 🆕 Fonction légère pour obtenir juste l'ID utilisateur
+// async function getUserIdFromToken(): Promise<string | null> {
+//   const token = await getTokenFromCookie()
+//   if (!token) return null
   
-  const decoded = verifyToken(token)
-  return decoded?.userId || null
-}
+//   const decoded = verifyToken(token)
+//   return decoded?.userId || null
+// }
 
 // ============ ACTIONS PRINCIPALES (login, register, logout INCHANGÉS) ============
 
@@ -563,58 +658,58 @@ export async function logout(): Promise<void> {
 
 // ============ 🔧 CORRECTION PRINCIPALE: getCurrentUser optimisé ============
 
-export async function getCurrentUser(): Promise<AuthResult> {
-  try {
-    // 🆕 Utiliser le cache si disponible et frais
-    if (userCache && (Date.now() - userCache.timestamp) < CACHE_DURATION) {
-      return { success: true, user: userCache.user }
-    }
+// export async function getCurrentUser(): Promise<AuthResult> {
+//   try {
+//     // 🆕 Utiliser le cache si disponible et frais
+//     if (userCache && (Date.now() - userCache.timestamp) < CACHE_DURATION) {
+//       return { success: true, user: userCache.user }
+//     }
 
-    const token = await getTokenFromCookie()
-    if (!token) {
-      return { error: 'Non authentifié' }
-    }
+//     const token = await getTokenFromCookie()
+//     if (!token) {
+//       return { error: 'Non authentifié' }
+//     }
 
-    const decoded = verifyToken(token)
-    if (!decoded) {
-      await removeAuthCookie()
-      return { error: 'Session expirée' }
-    }
+//     const decoded = verifyToken(token)
+//     if (!decoded) {
+//       await removeAuthCookie()
+//       return { error: 'Session expirée' }
+//     }
 
-    // 🆕 Ne rafraîchir le token qu'une seule fois par période de cache
-    const { data: user, error } = await supabase
-      .from('users')
-      .select('id, username, email, role, genre, photo_profil, created_at, updated_at')
-      .eq('id', decoded.userId)
-      .single()
+//     // 🆕 Ne rafraîchir le token qu'une seule fois par période de cache
+//     const { data: user, error } = await supabase
+//       .from('users')
+//       .select('id, username, email, role, genre, photo_profil, created_at, updated_at')
+//       .eq('id', decoded.userId)
+//       .single()
 
-    if (error || !user) {
-      await removeAuthCookie()
-      return { error: 'Utilisateur non trouvé' }
-    }
+//     if (error || !user) {
+//       await removeAuthCookie()
+//       return { error: 'Utilisateur non trouvé' }
+//     }
 
-    // 🆕 Rafraîchir le token
-    const newToken = generateToken(user.id, user.role)
-    await setAuthCookie(newToken)
+//     // 🆕 Rafraîchir le token
+//     const newToken = generateToken(user.id, user.role)
+//     await setAuthCookie(newToken)
 
-    // 🆕 Mettre en cache
-    userCache = { user, timestamp: Date.now() }
+//     // 🆕 Mettre en cache
+//     userCache = { user, timestamp: Date.now() }
 
-    return { 
-      success: true, 
-      user
-    }
+//     return { 
+//       success: true, 
+//       user
+//     }
 
-  } catch (error) {
-    console.error('Exception getCurrentUser:', error)
-    return { error: 'Erreur serveur' }
-  }
-}
+//   } catch (error) {
+//     console.error('Exception getCurrentUser:', error)
+//     return { error: 'Erreur serveur' }
+//   }
+// }
 
-// ============ 🆕 Fonction utilitaire exportée ============
-export async function getCurrentUserId(): Promise<string | null> {
-  return await getUserIdFromToken()
-}
+// // ============ 🆕 Fonction utilitaire exportée ============
+// export async function getCurrentUserId(): Promise<string | null> {
+//   return await getUserIdFromToken()
+// }
 
 // ============ GESTION DU PROFIL (CORRIGÉ) ============
 

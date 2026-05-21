@@ -333,7 +333,7 @@ export default function Navbar() {
 
                 {/* Profil */}
                 <Link 
-                  href="/profile" 
+                  href="/" 
                   className="flex items-center gap-2 hover:opacity-80 transition-opacity px-2 py-1 rounded-lg hover:bg-gray-50"
                 >
                   {user.photo_profil ? (
