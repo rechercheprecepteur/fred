@@ -1,120 +1,3 @@
-// // app/login/page.tsx
-// 'use client'
-
-// import { useState } from 'react'
-// import { login } from '@/actions/auth'
-// import { useRouter } from 'next/navigation'
-// import { useAuth } from '@/context/AuthContext'
-// import Link from 'next/link'
-
-// export default function LoginPage() {
-//   const [error, setError] = useState('')
-//   const [loading, setLoading] = useState(false)
-//   const router = useRouter()
-//   const { loginUser } = useAuth()
-
-//   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-//     e.preventDefault()
-//     setLoading(true)
-//     setError('')
-
-//     try {
-//       const formData = new FormData(e.currentTarget)
-//       const email = formData.get('email') as string
-//       const password = formData.get('password') as string
-
-//       const result = await login(email, password)
-
-//       if (result.error) {
-//         setError(result.error)
-//       } else if (result.success && result.user) {
-//         // Mettre à jour le contexte avec l'utilisateur
-//         loginUser(result.user)
-        
-//         // Rediriger selon le rôle
-//         router.push(`/dashboard/${result.user.role}`)
-//       }
-//     } catch (err) {
-//       setError('Une erreur est survenue')
-//       console.error('Erreur login:', err)
-//     } finally {
-//       setLoading(false)
-//     }
-//   }
-
-//   return (
-//     <div className="min-h-screen flex items-center justify-center px-4">
-//       <div className="max-w-sm w-full space-y-8">
-//         <div className="text-center ">
-//           <img src='/icon.png' className='w-auto mx-auto h-24' alt="Logo"/>
-//           <h2 className="text-3xl font-bold text-gray-900">Connexion</h2>
-//           <p className="mt-2 text-sm text-gray-600">Connectez-vous à votre compte</p>
-//         </div>
-
-//         <form onSubmit={handleSubmit} className="mt-8 space-y-6">
-//           {error && (
-//             <div className="bg-red-50 text-red-500 p-3 rounded-lg text-sm">{error}</div>
-//           )}
-
-//           <div className="space-y-4">
-//             <div>
-//               <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
-//                 Email
-//               </label>
-//               <input
-//                 id="email"
-//                 type="email"
-//                 name="email"
-//                 required
-//                 autoComplete="email"
-//                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
-//               />
-//             </div>
-
-//             <div>
-//               <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
-//                 Mot de passe
-//               </label>
-//               <input
-//                 id="password"
-//                 type="password"
-//                 name="password"
-//                 required
-//                 autoComplete="current-password"
-//                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
-//               />
-//             </div>
-//           </div>
-
-//           <button
-//             type="submit"
-//             disabled={loading}
-//             className="w-full py-2 px-4 bg-black text-white rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-//           >
-//             {loading ? (
-//               <span className="flex items-center justify-center gap-2">
-//                 <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-//                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/>
-//                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
-//                 </svg>
-//                 Connexion...
-//               </span>
-//             ) : (
-//               'Se connecter'
-//             )}
-//           </button>
-
-//           <p className="text-center text-sm text-gray-600">
-//             Pas encore de compte ?{' '}
-//             <Link href="/register" className="text-black font-medium hover:underline">
-//               S'inscrire
-//             </Link>
-//           </p>
-//         </form>
-//       </div>
-//     </div>
-//   )
-// }
 
 // app/login/page.tsx
 'use client'
@@ -134,42 +17,57 @@ export default function LoginPage() {
   const router = useRouter()
   const { loginUser } = useAuth()
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault()
-    setLoading(true)
-    setError('')
-    setSuccess('')
-    setShowResendButton(false)
+// app/login/page.tsx
+const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+  e.preventDefault()
+  setLoading(true)
+  setError('')
+  setSuccess('')
+  setShowResendButton(false)
 
-    try {
-      const formData = new FormData(e.currentTarget)
-      const email = formData.get('email') as string
-      const password = formData.get('password') as string
+  try {
+    const formData = new FormData(e.currentTarget)
+    const email = formData.get('email') as string
+    const password = formData.get('password') as string
 
-      const result = await login(email, password)
+    console.log('Tentative de connexion avec:', email)
+    const result = await login(email, password)
+    console.log('Résultat login:', result)
 
-      if (result.error) {
-        setError(result.error)
-        
-        // Si l'email n'est pas vérifié, afficher les options
-        if (result.code === 'EMAIL_NOT_VERIFIED') {
-          setShowResendButton(true)
-          setUserEmail(email)
-        }
-      } else if (result.success && result.user) {
-        // Mettre à jour le contexte avec l'utilisateur
-        loginUser(result.user)
-        
-        // Rediriger selon le rôle
-        router.push(`/dashboard/${result.user.role}`)
+    if (result.error) {
+      setError(result.error)
+      
+      // Si l'email n'est pas vérifié, afficher les options
+      if (result.code === 'EMAIL_NOT_VERIFIED') {
+        console.log('Email non vérifié, affichage des options')
+        setShowResendButton(true)
+        setUserEmail(email)
       }
-    } catch (err) {
-      setError('Une erreur est survenue')
-      console.error('Erreur login:', err)
-    } finally {
-      setLoading(false)
+    } else if (result.success && result.user) {
+      console.log('Connexion réussie, utilisateur:', result.user)
+      
+      // ✅ Étape 1: Mettre à jour le contexte avec l'utilisateur
+      loginUser(result.user)
+      
+      // ✅ Étape 2: Attendre que le cookie soit bien défini
+      console.log('⏳ Attente de 500ms pour que le cookie soit défini...')
+      await new Promise(resolve => setTimeout(resolve, 500))
+      
+      // ✅ Étape 3: Rediriger selon le rôle
+      const dashboardUrl = `/dashboard/${result.user.role}`
+      console.log('🔄 Redirection vers:', dashboardUrl)
+      
+      // ✅ Utiliser window.location.href pour une redirection complète
+      // Cela force un rechargement complet de la page et garantit que le cookie est lu
+      window.location.href = dashboardUrl
     }
+  } catch (err) {
+    console.error('Erreur login:', err)
+    setError('Une erreur est survenue')
+  } finally {
+    setLoading(false)
   }
+}
 
   const handleResendVerification = async () => {
     setLoading(true)

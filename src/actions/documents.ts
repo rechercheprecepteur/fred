@@ -208,3 +208,87 @@ export async function deleteDocument(documentId: number) {
     return { error: 'Erreur lors de la suppression' }
   }
 }
+
+
+// ✅ AJOUTER à la fin du fichier actions/documents.ts
+
+// Récupérer les documents d'un précepteur par son ID (pour l'admin)
+export async function getDocumentsByPrecepteurId(precepteurId: number) {
+  try {
+    const { data, error } = await supabase
+      .from('documents')
+      .select('*')
+      .eq('precepteur_id', precepteurId)
+      .order('created_at', { ascending: false })
+
+    if (error) {
+      return { documents: [], error: error.message }
+    }
+
+    return { documents: data || [], error: null }
+    
+  } catch (error) {
+    console.error('Erreur getDocumentsByPrecepteurId:', error)
+    return { documents: [], error: 'Erreur serveur' }
+  }
+}
+
+// Mettre à jour le statut d'un document (pour l'admin)
+export async function updateDocumentStatus(
+  documentId: number,
+  statut: 'verifie' | 'rejete',
+  commentaire?: string
+) {
+  try {
+    const { error } = await supabase
+      .from('documents')
+      .update({
+        statut_verification: statut,
+        commentaire_verification: commentaire || null
+      })
+      .eq('id', documentId)
+
+    if (error) {
+      return { success: false, error: error.message }
+    }
+
+    return { success: true, error: null }
+    
+  } catch (error) {
+    console.error('Erreur updateDocumentStatus:', error)
+    return { success: false, error: 'Erreur serveur' }
+  }
+}
+
+// Récupérer les documents par user_id (si la table utilise aussi user_id)
+export async function getDocumentsByUserId(userId: string) {
+  try {
+    // D'abord trouver le precepteur_id à partir du user_id
+    const { data: precepteur, error: precepteurError } = await supabase
+      .from('precepteurs')
+      .select('id')
+      .eq('user_id', userId)
+      .single()
+
+    if (precepteurError || !precepteur) {
+      return { documents: [], error: 'Précepteur non trouvé' }
+    }
+
+    // Ensuite récupérer les documents
+    const { data, error } = await supabase
+      .from('documents')
+      .select('*')
+      .eq('precepteur_id', precepteur.id)
+      .order('created_at', { ascending: false })
+
+    if (error) {
+      return { documents: [], error: error.message }
+    }
+
+    return { documents: data || [], error: null }
+    
+  } catch (error) {
+    console.error('Erreur getDocumentsByUserId:', error)
+    return { documents: [], error: 'Erreur serveur' }
+  }
+}

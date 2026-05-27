@@ -1,5 +1,3 @@
-
-
 // app/components/Navbar.tsx
 'use client'
 
@@ -42,9 +40,10 @@ type Notification = {
   created_at: string
 }
 
-const navLinks: NavLink[] = [
+// 🔥 Liens avec dashboard dynamique selon le rôle
+const getNavLinks = (role: string): NavLink[] => [
   {
-    href: '/dashboard',
+    href: `/dashboard/${role}`,
     label: 'Dashboard',
     icon: <PiHouse className="w-4 h-4" />,
     roles: ['parent', 'precepteur', 'admin', 'responsable_pedagogique']
@@ -67,7 +66,6 @@ const navLinks: NavLink[] = [
     icon: <CheckBadgeIcon className="w-4 h-4" />,
     roles: ['admin']
   },
-
 ]
 
 export default function Navbar() {
@@ -188,10 +186,12 @@ export default function Navbar() {
     setMobileMenuOpen(false)
   }
 
+  // 🔥 Dashboard dynamique selon le rôle
   const dashboardLink = user ? `/dashboard/${user.role}` : '/login'
-
+  
+  // 🔥 Liens filtrés dynamiquement
   const filteredLinks = user 
-    ? navLinks.filter(link => link.roles.includes(user.role))
+    ? getNavLinks(user.role).filter(link => link.roles.includes(user.role))
     : []
 
   // Skeleton pour le loading
@@ -218,8 +218,8 @@ export default function Navbar() {
     <nav className="bg-white border w-full max-w-5xl mx-auto rounded-xl mt-2 border-gray-200 relative">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-16 items-center">
-          {/* Logo */}
-          <Link href="/" className="flex items-center gap-2 text-xl font-bold text-gray-900 hover:opacity-80 transition-opacity flex-shrink-0">
+          {/* Logo - redirige vers le dashboard dynamique */}
+          <Link href={dashboardLink} className="flex items-center gap-2 text-xl font-bold text-gray-900 hover:opacity-80 transition-opacity flex-shrink-0">
             <img src='/icon.png' alt='Logo' className='w-auto h-10' />
             <span className="hidden sm:inline">Préc'App</span>
           </Link>
@@ -331,9 +331,9 @@ export default function Navbar() {
                   )}
                 </div>
 
-                {/* Profil */}
+                {/* Profil - lien vers le dashboard dynamique */}
                 <Link 
-                  href="/" 
+                  href={dashboardLink}
                   className="flex items-center gap-2 hover:opacity-80 transition-opacity px-2 py-1 rounded-lg hover:bg-gray-50"
                 >
                   {user.photo_profil ? (

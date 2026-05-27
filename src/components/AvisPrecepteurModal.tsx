@@ -9,7 +9,6 @@ import {
   User,
   MessageSquare,
   Calendar,
-  ThumbsUp,
   BookOpen,
   Award
 } from 'lucide-react'
@@ -56,6 +55,7 @@ export default function AvisPrecepteurModal({
 }: AvisPrecepteurModalProps) {
   const [ratings, setRatings] = useState<Rating[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [stats, setStats] = useState({
     moyenne: 0,
     total: 0,
@@ -70,38 +70,46 @@ export default function AvisPrecepteurModal({
 
   const loadRatings = async () => {
     setLoading(true)
+    setError(null)
     
     try {
-      // Récupérer tous les ratings avec les infos parents et contrats
-      const { data: ratingsData, error } = await supabase
+      console.log('🔍 [DEBUG] Début chargement pour precepteurId:', precepteurId)
+      
+      // ÉTAPE 1: Test simple - Récupérer juste les ratings sans jointures
+      const { data: simpleRatings, error: simpleError } = await supabase
         .from('precepteur_ratings')
-        .select(`
-          *,
-          contract:contracts!inner (
-            matiere:matieres!inner (
-              nom,
-              niveau
-            ),
-            eleve:eleves!inner (
-              prenom,
-              nom,
-              niveau
-            )
-          )
-        `)
+        .select('*')
         .eq('precepteur_id', precepteurId)
-        .order('created_at', { ascending: false })
+      
+      console.log('📊 [DEBUG] Résultat simple:', { 
+        data: simpleRatings, 
+        error: simpleError,
+        count: simpleRatings?.length 
+      })
 
-      if (error) {
-        console.error('Erreur chargement ratings:', error)
+      if (simpleError) {
+        console.error('❌ [DEBUG] Erreur simple:', simpleError)
+        setError(`Erreur base de données: ${simpleError.message || JSON.stringify(simpleError)}`)
         setLoading(false)
         return
       }
 
-      // Récupérer les infos des parents séparément
-      const parentIds = [...new Set((ratingsData || []).map(r => r.parent_id))]
-      
-      const { data: parents } = await supabase
+      if (!simpleRatings || simpleRatings.length === 0) {
+        console.log('⚠️ [DEBUG] Aucun rating trouvé')
+        setRatings([])
+        setStats({ moyenne: 0, total: 0, repartition: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 } })
+        setLoading(false)
+        return
+      }
+
+      console.log('✅ [DEBUG] Ratings simples trouvés:', simpleRatings.length)
+
+      // ÉTAPE 2: Récupérer les IDs des parents
+      const parentIds = [...new Set(simpleRatings.map(r => r.parent_id))]
+      console.log('👥 [DEBUG] Parent IDs:', parentIds)
+
+      // ÉTAPE 3: Récupérer les infos des parents
+      const { data: parents, error: parentsError } = await supabase
         .from('parents')
         .select(`
           id,
@@ -112,19 +120,51 @@ export default function AvisPrecepteurModal({
         `)
         .in('id', parentIds)
 
+      console.log('👤 [DEBUG] Parents trouvés:', { data: parents, error: parentsError })
+
+      // ÉTAPE 4: Récupérer les IDs des contrats
+      const contractIds = [...new Set(simpleRatings.map(r => r.contract_id))]
+      console.log('📝 [DEBUG] Contract IDs:', contractIds)
+
+      // ÉTAPE 5: Récupérer les infos des contrats
+      const { data: contracts, error: contractsError } = await supabase
+        .from('contracts')
+        .select(`
+          id,
+          matiere_id,
+          eleve_id,
+          matiere:matieres!inner (
+            nom,
+            niveau
+          ),
+          eleve:eleves!inner (
+            prenom,
+            nom,
+            niveau
+          )
+        `)
+        .in('id', contractIds)
+
+      console.log('📄 [DEBUG] Contrats trouvés:', { data: contracts, error: contractsError })
+
+      // ÉTAPE 6: Assembler les données
       const parentsMap = new Map()
       if (parents) {
-        parents.forEach(p => {
-          parentsMap.set(p.id, p)
-        })
+        parents.forEach(p => parentsMap.set(p.id, p))
       }
 
-      // Assembler les données
-      const ratingsWithDetails = (ratingsData || []).map(rating => ({
+      const contractsMap = new Map()
+      if (contracts) {
+        contracts.forEach(c => contractsMap.set(c.id, c))
+      }
+
+      const ratingsWithDetails = simpleRatings.map(rating => ({
         ...rating,
-        parent: parentsMap.get(rating.parent_id) || null
+        parent: parentsMap.get(rating.parent_id) || null,
+        contract: contractsMap.get(rating.contract_id) || null
       }))
 
+      console.log('🎯 [DEBUG] Ratings assemblés:', ratingsWithDetails)
       setRatings(ratingsWithDetails)
 
       // Calculer les statistiques
@@ -135,13 +175,17 @@ export default function AvisPrecepteurModal({
 
       const repartition = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 }
       ratingsWithDetails.forEach(r => {
-        repartition[r.note as keyof typeof repartition]++
+        if (r.note >= 1 && r.note <= 5) {
+          repartition[r.note as keyof typeof repartition]++
+        }
       })
 
       setStats({ moyenne, total, repartition })
+      console.log('📈 [DEBUG] Stats calculées:', { moyenne, total, repartition })
 
     } catch (error) {
-      console.error('Exception:', error)
+      console.error('💥 [DEBUG] Exception:', error)
+      setError(`Exception: ${error instanceof Error ? error.message : 'Erreur inconnue'}`)
     }
 
     setLoading(false)
@@ -181,8 +225,21 @@ export default function AvisPrecepteurModal({
               <h2 className="text-xl font-bold text-gray-900">Avis des parents</h2>
             </div>
 
+            {/* Message d'erreur */}
+            {error && (
+              <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-xl">
+                <p className="text-sm text-red-700">{error}</p>
+                <button 
+                  onClick={loadRatings}
+                  className="text-xs text-red-600 underline mt-1"
+                >
+                  Réessayer
+                </button>
+              </div>
+            )}
+
             {/* Statistiques rapides */}
-            {stats.total > 0 && (
+            {!error && stats.total > 0 && (
               <div className="flex items-center gap-4 mt-3">
                 <div className="flex items-center gap-2">
                   <div className="flex">
@@ -208,7 +265,7 @@ export default function AvisPrecepteurModal({
             )}
 
             {/* Barres de répartition */}
-            {stats.total > 0 && (
+            {!error && stats.total > 0 && (
               <div className="space-y-1.5 mt-3">
                 {[5, 4, 3, 2, 1].map((note) => {
                   const count = stats.repartition[note as keyof typeof stats.repartition]
@@ -255,6 +312,14 @@ export default function AvisPrecepteurModal({
                   </div>
                 ))}
               </div>
+            ) : error ? (
+              <div className="text-center py-12">
+                <MessageSquare className="w-16 h-16 text-red-300 mx-auto mb-4" />
+                <p className="text-red-500 text-lg font-medium">Erreur de chargement</p>
+                <p className="text-gray-400 text-sm mt-1">
+                  Vérifiez la console pour plus de détails
+                </p>
+              </div>
             ) : ratings.length === 0 ? (
               <div className="text-center py-12">
                 <MessageSquare className="w-16 h-16 text-gray-300 mx-auto mb-4" />
@@ -270,10 +335,8 @@ export default function AvisPrecepteurModal({
                     key={rating.id}
                     className="bg-gray-50 rounded-xl p-4 hover:bg-gray-100 transition-colors"
                   >
-                    {/* En-tête de l'avis */}
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex items-center gap-3">
-                        {/* Avatar du parent */}
                         {rating.parent?.user?.photo_profil ? (
                           <img
                             src={rating.parent.user.photo_profil}
@@ -300,7 +363,6 @@ export default function AvisPrecepteurModal({
                         </div>
                       </div>
 
-                      {/* Étoiles */}
                       <div className="flex items-center gap-0.5">
                         {[1, 2, 3, 4, 5].map((star) => (
                           <Star
@@ -315,7 +377,6 @@ export default function AvisPrecepteurModal({
                       </div>
                     </div>
 
-                    {/* Commentaire */}
                     {rating.commentaire && (
                       <div className="mb-3">
                         <p className="text-sm text-gray-700 italic">
@@ -324,7 +385,6 @@ export default function AvisPrecepteurModal({
                       </div>
                     )}
 
-                    {/* Détails du contrat */}
                     {rating.contract && (
                       <div className="flex flex-wrap gap-2 text-xs">
                         <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 text-blue-700 rounded-full">
@@ -333,12 +393,11 @@ export default function AvisPrecepteurModal({
                         </span>
                         <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-50 text-green-700 rounded-full">
                           <Award className="w-3 h-3" />
-                          {rating.contract.eleve?.prenom} {rating.contract.eleve?.nom} ({rating.contract.eleve?.niveau})
+                          {rating.contract.eleve?.prenom} {rating.contract.eleve?.nom}
                         </span>
                       </div>
                     )}
 
-                    {/* Note si pas de commentaire */}
                     {!rating.commentaire && (
                       <p className="text-xs text-gray-400 italic">
                         Avis sans commentaire
@@ -350,7 +409,6 @@ export default function AvisPrecepteurModal({
             )}
           </div>
 
-          {/* Footer */}
           <div className="border-t p-4">
             <button
               onClick={onClose}

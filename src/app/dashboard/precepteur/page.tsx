@@ -1,6 +1,6 @@
 
 'use client'
-
+import { useRouter } from 'next/navigation'
 import UploadDocument from '@/components/UploadDocument'
 import ListeDocuments from '@/components/ListeDocuments'
 import ProfilModal from '@/components/ProfilModal'
@@ -51,50 +51,10 @@ import {
   Activity,   // ← Ajouter
   RefreshCw   // ← Ajouter
 } from 'lucide-react'
-import SelectionMatieres from '@/components/SelectionMatieres'
 import { PiBookOpen, PiPlus, PiTrash } from 'react-icons/pi'
 import Loader from '@/components/Loader'
 import { CheckBadgeIcon } from '@heroicons/react/24/solid'
 
-// Types
-// type Contract = {
-//   id: number
-//   parent_id: number
-//   precepteur_id: number
-//   eleve_id: number
-//   matiere_id: number
-//   date_debut: string
-//   date_fin: string
-//   heure_debut_pref: string
-//   heure_fin_pref: string
-//   jours_pref: string
-//   type_contrat: 'recurrent' | 'ponctuel'
-//   frequence: 'quotidien' | 'hebdomadaire' | 'bihebdomadaire' | 'mensuel' | 'ponctuel'
-//   tarif_horaire: number | null
-//   notes: string | null
-//   statut: 'en_attente' | 'accepte' | 'refuse' | 'actif' | 'termine' | 'annule'
-//   created_at: string
-//   parent?: {
-//     user: {
-//       username: string
-//       photo_profil: string | null
-//       telephone: string | null
-//     }
-//   }
-//   eleve?: {
-//     nom: string
-//     prenom: string
-//     niveau: string
-//   }
-//   matiere?: {
-//     nom: string
-//     niveau: string
-//   }
-//   sessions?: Session[]
-// }
-
-
-// Types - Remplacer les types existants par ceux-ci
 
 type Contract = {
   id: number
@@ -495,7 +455,8 @@ export default function PrecepteurDashboard() {
   const [activeTab, setActiveTab] = useState('profil')
   const [showModal, setShowModal] = useState(false)
   const [refreshDocs, setRefreshDocs] = useState(0)
-
+const router = useRouter()
+const [creatingSession, setCreatingSession] = useState(false)
   // États pour les modals
   const [selectedSession, setSelectedSession] = useState<Session | null>(null)
   const [showSessionModal, setShowSessionModal] = useState(false)
@@ -523,28 +484,55 @@ const [showCreateSessionModal, setShowCreateSessionModal] = useState(false)
 
   const [disponible, setDisponible] = useState(precepteurInfo?.disponible ?? true)
 
+
+
+// Remplacez TOUT le useEffect existant par celui-ci :
+
 useEffect(() => {
-    if (user) {
-      if (precepteurInfo) {
-        setForm({
-          latitude: precepteurInfo.latitude?.toString() || '',
-          longitude: precepteurInfo.longitude?.toString() || '',
-          commune: precepteurInfo.commune || '',
-          quartier: precepteurInfo.quartier || '',
-          annees_experience: precepteurInfo.annees_experience || 0,
-          diplome: precepteurInfo.diplome || '',
-           telephone: precepteurInfo.telephone || '' ,
-          etablissement_origine: precepteurInfo.etablissement_origine || ''
-        })
-        setDisponible(precepteurInfo.disponible ?? true)
-      }
-      loadContrats()
-      loadMatieres()
+  let isMounted = true;
+
+  const initializeData = async () => {
+    if (!user) {
+      setLoading(false);
+      return;
     }
-  }, [user, precepteurInfo])
 
+    // Si precepteurInfo n'est pas encore chargé mais que l'utilisateur existe
+    if (!precepteurInfo && !precepteurLoading) {
+      // Attendre que le precepteurInfo soit disponible
+      await refreshPrecepteurInfo();
+    }
 
+    if (!isMounted) return;
 
+    // Charger les données seulement si precepteurInfo existe
+    if (precepteurInfo) {
+      setForm({
+        latitude: precepteurInfo.latitude?.toString() || '',
+        longitude: precepteurInfo.longitude?.toString() || '',
+        commune: precepteurInfo.commune || '',
+        quartier: precepteurInfo.quartier || '',
+        annees_experience: precepteurInfo.annees_experience || 0,
+        diplome: precepteurInfo.diplome || '',
+        telephone: precepteurInfo.telephone || '',
+        etablissement_origine: precepteurInfo.etablissement_origine || ''
+      });
+      setDisponible(precepteurInfo.disponible ?? true);
+      
+      await Promise.all([loadContrats(), loadMatieres()]);
+    }
+
+    if (isMounted) {
+      setLoading(false);
+    }
+  };
+
+  initializeData();
+
+  return () => {
+    isMounted = false;
+  };
+}, [user?.id, precepteurInfo?.id]); // Utiliser des IDs stables plutôt que les objets entiers
 
 // ✅ IMPORTANT: Plus besoin de passer le token !
 // Les actions le récupèrent directement depuis les cookies
@@ -618,7 +606,6 @@ const toggleDisponible = async () => {
     setMessage('Erreur lors de la mise à jour')
   }
 }
-
 
 
 
@@ -1065,24 +1052,6 @@ const handleContractStatusChange = async (contractId: number, newStatus: string)
 
 
 
-  // const handleContractStatusChange = async (contractId: number, newStatus: string) => {
-  //   const { error } = await supabase
-  //     .from('contracts')
-  //     .update({ 
-  //       statut: newStatus, 
-  //       updated_at: new Date().toISOString() 
-  //     })
-  //     .eq('id', contractId)
-
-  //   if (!error) {
-  //     setMessage(`Contrat ${newStatus.replace('_', ' ')} avec succès`)
-  //     await loadContrats()
-  //     setTimeout(() => setMessage(''), 3000)
-  //   } else {
-  //     setMessage('Erreur lors du changement de statut du contrat')
-  //   }
-  // }
-
   // Gestion des sessions
   const handleSessionStatusChange = async (sessionId: number, newStatus: string) => {
     const { error } = await supabase
@@ -1120,8 +1089,7 @@ const handleContractStatusChange = async (contractId: number, newStatus: string)
   }
 
   const openContractDetail = (contract: Contract) => {
-    setSelectedContract(contract)
-    setShowContractModal(true)
+    router.push(`/dashboard/precepteur/contrats/${contract.id}`)
   }
 
   const getContratStatutColor = (statut: string) => {
@@ -1552,26 +1520,33 @@ const handleContractStatusChange = async (contractId: number, newStatus: string)
         <p className="text-sm text-gray-500 mt-0.5">{contrats.length} contrat{contrats.length > 1 ? 's' : ''}</p>
       </div>
       
-      {/* Bouton Planifier une session */}
-      <button
-        onClick={() => {
-          const contratActif = contrats.find(c => c.statut === 'actif' || c.statut === 'accepte')
-          if (contratActif) {
-            setSelectedContractForSession(contratActif)
-            setShowCreateSessionModal(true)
-          }
-        }}
-        disabled={!contrats.some(c => c.statut === 'actif' || c.statut === 'accepte')}
-        className={`px-4 py-2 text-sm rounded-xl transition-colors flex items-center gap-2 font-medium ${
-          contrats.some(c => c.statut === 'actif' || c.statut === 'accepte')
-            ? 'bg-black text-white hover:bg-gray-800'
-            : 'bg-gray-200 text-gray-400 cursor-not-allowed'
-        }`}
-        title={!contrats.some(c => c.statut === 'actif' || c.statut === 'accepte') ? 'Vous devez avoir un contrat actif ou accepté pour planifier une session' : ''}
-      >
-        <Plus className="w-4 h-4" />
-        Planifier une session
-      </button>
+    <button
+  onClick={async () => {
+    const contratActif = contrats.find(c => c.statut === 'actif' || c.statut === 'accepte')
+    if (contratActif) {
+      setSelectedContractForSession(contratActif)
+      setShowCreateSessionModal(true)
+    }
+  }}
+  disabled={!contrats.some(c => c.statut === 'actif' || c.statut === 'accepte') || creatingSession}
+  className={`px-4 py-2 text-sm rounded-xl transition-colors flex items-center gap-2 font-medium ${
+    contrats.some(c => c.statut === 'actif' || c.statut === 'accepte') && !creatingSession
+      ? 'bg-black text-white hover:bg-gray-800'
+      : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+  }`}
+>
+  {creatingSession ? (
+    <>
+      <RefreshCw className="w-4 h-4 animate-spin" />
+      Création...
+    </>
+  ) : (
+    <>
+      <Plus className="w-4 h-4" />
+      Planifier une session
+    </>
+  )}
+</button>
     </div>
 
     {contrats.length === 0 ? (
@@ -1918,12 +1893,16 @@ const handleContractStatusChange = async (contractId: number, newStatus: string)
   onClose={() => {
     setShowCreateSessionModal(false)
     setSelectedContractForSession(null)
+     setCreatingSession(false)
   }}
   onSuccess={() => {
     loadContrats()
     setMessage('Session planifiée avec succès !')
     setTimeout(() => setMessage(''), 3000)
+     setCreatingSession(false)
   }}
+   onCreating={() => setCreatingSession(true)}
+  onError={() => setCreatingSession(false)}
 />
       {/* Modal de détail session */}
       <SessionDetailModal
