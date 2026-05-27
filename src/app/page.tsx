@@ -57,8 +57,7 @@ export default function Home() {
             ) : user ? (
               // Utilisateur connecté
               <>
-                <Link 
-                  href={user.role === 'admin' ? '/dashboard/admin' : '/dashboard/parent'}
+                <div
                   className="flex items-center gap-1.5 md:gap-2 hover:opacity-80 transition-opacity px-1.5 md:px-2 py-1 md:py-2 rounded-lg hover:bg-gray-50"
                 >
                   {user.photo_profil ? (
@@ -76,7 +75,7 @@ export default function Home() {
                     <span className="text-xs md:text-sm font-medium leading-tight">{user.username}</span>
                     <span className="text-[10px] md:text-xs text-gray-500 capitalize leading-tight">{user.role.replace('_', ' ')}</span>
                   </div>
-                </Link>
+                </div>
 
                 <button 
                   onClick={handleLogout} 
