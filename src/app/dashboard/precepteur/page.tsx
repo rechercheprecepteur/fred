@@ -1,12 +1,13 @@
 
+// app/dashboard/precepteur/page.tsx
 'use client'
 import { useRouter } from 'next/navigation'
 import UploadDocument from '@/components/UploadDocument'
+import ServiceManager from '@/components/ServiceManager'
 import ListeDocuments from '@/components/ListeDocuments'
 import ProfilModal from '@/components/ProfilModal'
 import { useAuth } from '@/context/AuthContext'
 import CreateSessionModal from './CreateSessionModal'
-// ✅ AJOUTER cet import
 import SessionDetailModal from './SessionDetailModal'
 import { updateProfilePhoto, updatePrecepteurDisponibility } from '@/actions/auth'
 import { updatePrecepteurProfil } from '@/actions/precepteur'
@@ -37,24 +38,19 @@ import {
   RotateCcw,
   FileText,
   Users,
-  Tag
-} from 'lucide-react'
-
-import { 
-  // ... garder tous les imports existants
-  Phone,      // ← Ajouter
-  Mail,       // ← Ajouter
-  Building,   // ← Ajouter
-  CreditCard, // ← Ajouter
-  Hash,       // ← Ajouter
-  MessageSquare, // ← Ajouter
-  Activity,   // ← Ajouter
-  RefreshCw   // ← Ajouter
+  Tag,
+  Phone,
+  Mail,
+  Building,
+  CreditCard,
+  Hash,
+  MessageSquare,
+  Activity,
+  RefreshCw
 } from 'lucide-react'
 import { PiBookOpen, PiPlus, PiTrash } from 'react-icons/pi'
 import Loader from '@/components/Loader'
 import { CheckBadgeIcon } from '@heroicons/react/24/solid'
-
 
 type Contract = {
   id: number
@@ -130,9 +126,20 @@ type Matiere = {
   nom: string
   niveau: string
 }
+// app/dashboard/precepteur/page.tsx
+// Ajoutez cette interface en haut du fichier, après les autres types
 
-
-
+// ✅ AJOUTER cette interface
+interface ProfilForm {
+  latitude: string
+  longitude: string
+  commune: string
+  quartier: string
+  annees_experience: number
+  diplome: string
+  etablissement_origine: string
+  telephone: string
+}
 function ContractDetailModal({ 
   contract, 
   isOpen, 
@@ -444,7 +451,6 @@ function ContractDetailModal({
 }
 
 export default function PrecepteurDashboard() {
-  // const { user, precepteurInfo, refreshUser } = useAuth()
   const [uploading, setUploading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
@@ -455,20 +461,19 @@ export default function PrecepteurDashboard() {
   const [activeTab, setActiveTab] = useState('profil')
   const [showModal, setShowModal] = useState(false)
   const [refreshDocs, setRefreshDocs] = useState(0)
-const router = useRouter()
-const [creatingSession, setCreatingSession] = useState(false)
+  const router = useRouter()
+  const [creatingSession, setCreatingSession] = useState(false)
+  
   // États pour les modals
   const [selectedSession, setSelectedSession] = useState<Session | null>(null)
   const [showSessionModal, setShowSessionModal] = useState(false)
   const [selectedContract, setSelectedContract] = useState<Contract | null>(null)
   const [showContractModal, setShowContractModal] = useState(false)
+  const [selectedContractForSession, setSelectedContractForSession] = useState<Contract | null>(null)
+  const [showCreateSessionModal, setShowCreateSessionModal] = useState(false)
 
-  // À ajouter après les autres états
-const [selectedContractForSession, setSelectedContractForSession] = useState<Contract | null>(null)
-const [showCreateSessionModal, setShowCreateSessionModal] = useState(false)
-
-
- const { user, precepteurInfo, refreshUser, refreshPrecepteurInfo, precepteurLoading } = useAuth()
+  // ✅ Utiliser le nouveau contexte - refreshUser n'existe plus, on utilise refreshPrecepteurInfo
+  const { user, precepteurInfo, refreshPrecepteurInfo, updateUser } = useAuth()
   
   // Formulaire
   const [form, setForm] = useState({
@@ -479,238 +484,134 @@ const [showCreateSessionModal, setShowCreateSessionModal] = useState(false)
     annees_experience: 0,
     diplome: '',
     etablissement_origine: '',
-     telephone: '' 
+    telephone: '' 
   })
 
   const [disponible, setDisponible] = useState(precepteurInfo?.disponible ?? true)
 
+  useEffect(() => {
+    let isMounted = true;
 
+    const initializeData = async () => {
+      if (!user) {
+        setLoading(false);
+        return;
+      }
 
-// Remplacez TOUT le useEffect existant par celui-ci :
+      if (!precepteurInfo ) {
+        await refreshPrecepteurInfo();
+      }
 
-useEffect(() => {
-  let isMounted = true;
+      if (!isMounted) return;
 
-  const initializeData = async () => {
-    if (!user) {
-      setLoading(false);
-      return;
-    }
+      if (precepteurInfo) {
+        setForm({
+          latitude: precepteurInfo.latitude?.toString() || '',
+          longitude: precepteurInfo.longitude?.toString() || '',
+          commune: precepteurInfo.commune || '',
+          quartier: precepteurInfo.quartier || '',
+          annees_experience: precepteurInfo.annees_experience || 0,
+          diplome: precepteurInfo.diplome || '',
+          telephone: precepteurInfo.telephone || '',
+          etablissement_origine: precepteurInfo.etablissement_origine || ''
+        });
+        setDisponible(precepteurInfo.disponible ?? true);
+        
+        await Promise.all([loadContrats(), loadMatieres()]);
+      }
 
-    // Si precepteurInfo n'est pas encore chargé mais que l'utilisateur existe
-    if (!precepteurInfo && !precepteurLoading) {
-      // Attendre que le precepteurInfo soit disponible
-      await refreshPrecepteurInfo();
-    }
+      if (isMounted) {
+        setLoading(false);
+      }
+    };
 
-    if (!isMounted) return;
+    initializeData();
 
-    // Charger les données seulement si precepteurInfo existe
-    if (precepteurInfo) {
-      setForm({
-        latitude: precepteurInfo.latitude?.toString() || '',
-        longitude: precepteurInfo.longitude?.toString() || '',
-        commune: precepteurInfo.commune || '',
-        quartier: precepteurInfo.quartier || '',
-        annees_experience: precepteurInfo.annees_experience || 0,
-        diplome: precepteurInfo.diplome || '',
-        telephone: precepteurInfo.telephone || '',
-        etablissement_origine: precepteurInfo.etablissement_origine || ''
-      });
-      setDisponible(precepteurInfo.disponible ?? true);
-      
-      await Promise.all([loadContrats(), loadMatieres()]);
-    }
+    return () => {
+      isMounted = false;
+    };
+  }, [user?.id, precepteurInfo?.id]);
 
-    if (isMounted) {
-      setLoading(false);
-    }
-  };
+ // Dans app/dashboard/precepteur/page.tsx
 
-  initializeData();
-
-  return () => {
-    isMounted = false;
-  };
-}, [user?.id, precepteurInfo?.id]); // Utiliser des IDs stables plutôt que les objets entiers
-
-// ✅ IMPORTANT: Plus besoin de passer le token !
-// Les actions le récupèrent directement depuis les cookies
-
-const handleSave = async () => {
+// ✅ CORRECTION 1: La fonction handleSave du dashboard
+const handleSave = async (data: ProfilForm & { matieres: number[] }) => {
   setSaving(true)
   setMessage('')
   
   try {
-    // ✅ Plus de token en paramètre
+    console.log('📤 Données envoyées:', data) // Pour déboguer
+    
     const result = await updatePrecepteurProfil({
-      ...form,
-      matieres: selectedMatieres
+      latitude: data.latitude,
+      longitude: data.longitude,
+      commune: data.commune,
+      quartier: data.quartier,
+      annees_experience: data.annees_experience,
+      diplome: data.diplome,
+      etablissement_origine: data.etablissement_origine,
+      telephone: data.telephone, // ✅ S'assurer que telephone est bien envoyé
+      matieres: data.matieres
     })
+    
+    console.log('📥 Réponse:', result) // Pour déboguer
     
     if (!result.error) {
       setShowModal(false)
       setMessage('Profil mis à jour avec succès')
-      await refreshPrecepteurInfo()
+      await refreshPrecepteurInfo() // ✅ Rafraîchir les infos
     } else {
       setMessage(result.error)
     }
   } catch (error) {
-    console.error('Erreur sauvegarde:', error)
+    console.error('❌ Erreur sauvegarde:', error)
     setMessage('Erreur lors de la mise à jour du profil')
   }
   
   setSaving(false)
   setTimeout(() => setMessage(''), 3000)
 }
-
-// ✅ handlePhotoUpload - Plus besoin de token
-const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-  const file = e.target.files?.[0]
-  if (!file) return
-  
-  setUploading(true)
-  const reader = new FileReader()
-  reader.onloadend = async () => {
-    // ✅ Plus de token
-    const result = await updateProfilePhoto(reader.result as string)
-    if (result.success) {
-      await refreshUser()
-      setMessage('Photo mise à jour avec succès')
-    } else {
-      setMessage(result.error || 'Erreur lors de la mise à jour')
+  // ✅ handlePhotoUpload - Remplacer refreshUser par updateUser
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    
+    setUploading(true)
+    const reader = new FileReader()
+    reader.onloadend = async () => {
+      const result = await updateProfilePhoto(reader.result as string)
+      if (result.success) {
+        // ✅ Mettre à jour l'utilisateur dans le contexte
+        updateUser({ photo_profil: reader.result as string })
+        setMessage('Photo mise à jour avec succès')
+      } else {
+        setMessage(result.error || 'Erreur lors de la mise à jour')
+      }
+      setUploading(false)
+      setTimeout(() => setMessage(''), 3000)
     }
-    setUploading(false)
-    setTimeout(() => setMessage(''), 3000)
+    reader.readAsDataURL(file)
   }
-  reader.readAsDataURL(file)
-}
 
-// ✅ toggleDisponible - Plus besoin de token
-const toggleDisponible = async () => {
-  const newDisponible = !disponible
-  setDisponible(newDisponible)
-  
-  try {
-    // ✅ Plus de token
-    const result = await updatePrecepteurDisponibility(newDisponible)
-    if (result.success) {
-      await refreshPrecepteurInfo()
-    } else {
+  // ✅ toggleDisponible - utilise refreshPrecepteurInfo
+  const toggleDisponible = async () => {
+    const newDisponible = !disponible
+    setDisponible(newDisponible)
+    
+    try {
+      const result = await updatePrecepteurDisponibility(newDisponible)
+      if (result.success) {
+        await refreshPrecepteurInfo()
+      } else {
+        setDisponible(!newDisponible)
+        setMessage(result.error || 'Erreur lors de la mise à jour')
+      }
+    } catch (error) {
+      console.error('Erreur toggleDisponible:', error)
       setDisponible(!newDisponible)
-      setMessage(result.error || 'Erreur lors de la mise à jour')
+      setMessage('Erreur lors de la mise à jour')
     }
-  } catch (error) {
-    console.error('Erreur toggleDisponible:', error)
-    setDisponible(!newDisponible)
-    setMessage('Erreur lors de la mise à jour')
   }
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-  // const loadContrats = async () => {
-  //   if (!precepteurInfo) { setLoading(false); return }
-
-  //   const { data, error } = await supabase
-  //     .from('contracts')
-  //     .select(`
-  //       id, 
-  //       parent_id, 
-  //       precepteur_id, 
-  //       eleve_id, 
-  //       matiere_id,
-  //       date_debut, 
-  //       date_fin, 
-  //       heure_debut_pref, 
-  //       heure_fin_pref, 
-  //       jours_pref,
-  //       type_contrat,
-  //       frequence,
-  //       tarif_horaire,
-  //       notes,
-  //       statut, 
-  //       created_at,
-  //       parent:parents!inner(
-  //         user:users!inner(username, photo_profil, telephone)
-  //       ),
-  //       eleve:eleves!inner(id, nom, prenom, niveau),
-  //       matiere:matieres!inner(id, nom, niveau),
-  //       sessions:sessions_cours(
-  //         id,
-  //         date_session,
-  //         heure_debut,
-  //         heure_fin,
-  //         duree_minutes,
-  //         statut,
-  //         type_session,
-  //         lieu,
-  //         lien_visio,
-  //         notes_precepteur
-  //       )
-  //     `)
-  //     .eq('precepteur_id', precepteurInfo.id)
-  //     .order('created_at', { ascending: false })
-  //     .limit(20)
-
-  //   if (error) {
-  //     console.error('Erreur chargement contrats:', error)
-  //   } else {
-  //     setContrats((data || []) as unknown as Contract[])
-  //   }
-  //   setLoading(false)
-  // }
-
 
   const loadContrats = async () => {
     if (!precepteurInfo) { setLoading(false); return }
@@ -832,227 +733,181 @@ const toggleDisponible = async () => {
         quartier: precepteurInfo.quartier || '',
         annees_experience: precepteurInfo.annees_experience || 0,
         diplome: precepteurInfo.diplome || '',
-         telephone: precepteurInfo.telephone || ''  ,
+        telephone: precepteurInfo.telephone || '',
         etablissement_origine: precepteurInfo.etablissement_origine || ''
       })
     }
     setShowModal(true)
   }
-// Dans le composant PrecepteurDashboard
 
-
-
-
-
-
-
-
-
-
-
-// Dans le composant PrecepteurDashboard
-
-const handleContractStatusChange = async (contractId: number, newStatus: string) => {
-  console.log('📝 Changement statut contrat:', { contractId, newStatus })
-  
-  // 1. Mettre à jour le statut du contrat
-  const { error } = await supabase
-    .from('contracts')
-    .update({ 
-      statut: newStatus, 
-      updated_at: new Date().toISOString() 
-    })
-    .eq('id', contractId)
-
-  if (error) {
-    console.error('❌ Erreur mise à jour contrat:', error)
-    setMessage('Erreur lors du changement de statut du contrat')
-    return
-  }
-
-  console.log('✅ Contrat mis à jour:', newStatus)
-
-  // 2. Si accepté ou refusé, envoyer un email au parent
-  if (newStatus === 'accepte' || newStatus === 'refuse') {
-    console.log('📧 Envoi notification au parent...')
+  const handleContractStatusChange = async (contractId: number, newStatus: string) => {
+    console.log('📝 Changement statut contrat:', { contractId, newStatus })
     
-    try {
-      // Récupérer les infos du contrat SANS JOINTURES
-      const { data: contract, error: contractError } = await supabase
-        .from('contracts')
-        .select(`
-          id,
-          parent_id,
-          precepteur_id,
-          eleve_id,
-          matiere_id,
-          date_debut,
-          date_fin
-        `)
-        .eq('id', contractId)
-        .single()
-
-      if (contractError || !contract) {
-        console.error('❌ Erreur récupération contrat:', contractError)
-        return
-      }
-
-      console.log('📧 Contrat récupéré:', contract.id)
-
-      // Récupérer les infos SÉPARÉMENT
-      const [
-        { data: parentData },
-        { data: precepteurData },
-        { data: eleveData },
-        { data: matiereData }
-      ] = await Promise.all([
-        // Parent
-        supabase
-          .from('parents')
-          .select(`
-            user_id,
-            user:users!parents_user_id_fkey(
-              id,
-              username,
-              email
-            )
-          `)
-          .eq('id', contract.parent_id)
-          .single(),
-        
-        // Précepteur
-        supabase
-          .from('precepteurs')
-          .select(`
-            user:users!precepteurs_user_id_fkey(
-              username
-            )
-          `)
-          .eq('id', contract.precepteur_id)
-          .single(),
-        
-        // Élève
-        supabase
-          .from('eleves')
-          .select('prenom, nom')
-          .eq('id', contract.eleve_id)
-          .single(),
-        
-        // Matière
-        supabase
-          .from('matieres')
-          .select('nom, niveau')
-          .eq('id', contract.matiere_id)
-          .single()
-      ])
-
-      // Extraire les données (gérer le cas où c'est un tableau)
-      const parentUser = Array.isArray(parentData?.user) 
-        ? parentData?.user[0] 
-        : parentData?.user
-      
-      const precepteurUser = Array.isArray(precepteurData?.user) 
-        ? precepteurData?.user[0] 
-        : precepteurData?.user
-
-      const parentEmail = parentUser?.email
-      const parentName = parentUser?.username || 'Parent'
-      const precepteurName = precepteurUser?.username || 'Précepteur'
-      const eleveName = eleveData ? `${eleveData.prenom} ${eleveData.nom}` : 'Élève'
-      const matiereName = matiereData 
-        ? `${matiereData.nom} ${matiereData.niveau ? `(${matiereData.niveau})` : ''}`
-        : 'Matière'
-
-      console.log('📧 Données extraites:', {
-        parentEmail,
-        parentName,
-        precepteurName,
-        eleveName,
-        matiereName
+    const { error } = await supabase
+      .from('contracts')
+      .update({ 
+        statut: newStatus, 
+        updated_at: new Date().toISOString() 
       })
+      .eq('id', contractId)
 
-      // Envoyer l'email si le parent a un email
-      if (parentEmail) {
-        const isAccepted = newStatus === 'accepte'
-        
-        console.log('📧 Appel API email...')
-        const response = await fetch('/api/send-contract-status-email', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            to: parentEmail,
-            parentName,
-            precepteurName,
-            eleveName,
-            matiere: matiereName,
-            dateDebut: contract.date_debut 
-              ? new Date(contract.date_debut).toLocaleDateString('fr-FR') 
-              : 'N/A',
-            dateFin: contract.date_fin 
-              ? new Date(contract.date_fin).toLocaleDateString('fr-FR') 
-              : 'N/A',
-            status: newStatus,
-            isAccepted,
-            contractId: contract.id
-          })
-        })
-
-        const result = await response.json()
-        if (result.success) {
-          console.log('✅ Email envoyé au parent:', parentEmail)
-        } else {
-          console.error('❌ Erreur envoi email:', result.error)
-        }
-      } else {
-        console.warn('⚠️ Pas d\'email pour le parent')
-      }
-
-      // Créer une notification dans la base de données
-      if (parentData?.user_id) {
-        try {
-          const isAccepted = newStatus === 'accepte'
-          const { error: notifError } = await supabase
-            .from('notifications')
-            .insert({
-              user_id: parentData.user_id,
-              titre: isAccepted ? '✅ Contrat accepté !' : '❌ Contrat refusé',
-              message: isAccepted 
-                ? `${precepteurName} a accepté votre demande de contrat pour ${eleveName} en ${matiereName}`
-                : `${precepteurName} a refusé votre demande de contrat pour ${eleveName} en ${matiereName}`,
-              type: 'contrat',
-              lien: `/dashboard/parent/contrats/${contractId}`,
-              lu: false
-            })
-
-          if (notifError) {
-            console.warn('⚠️ Erreur notification:', notifError.message)
-          } else {
-            console.log('✅ Notification créée pour le parent')
-          }
-        } catch (notifCatchError: any) {
-          console.warn('⚠️ Table notifications peut ne pas exister:', notifCatchError?.message)
-        }
-      }
-
-    } catch (emailError: any) {
-      console.error('❌ Erreur lors de l\'envoi:', emailError?.message || emailError)
+    if (error) {
+      console.error('❌ Erreur mise à jour contrat:', error)
+      setMessage('Erreur lors du changement de statut du contrat')
+      return
     }
+
+    console.log('✅ Contrat mis à jour:', newStatus)
+
+    if (newStatus === 'accepte' || newStatus === 'refuse') {
+      console.log('📧 Envoi notification au parent...')
+      
+      try {
+        const { data: contract, error: contractError } = await supabase
+          .from('contracts')
+          .select(`
+            id,
+            parent_id,
+            precepteur_id,
+            eleve_id,
+            matiere_id,
+            date_debut,
+            date_fin
+          `)
+          .eq('id', contractId)
+          .single()
+
+        if (contractError || !contract) {
+          console.error('❌ Erreur récupération contrat:', contractError)
+          return
+        }
+
+        const [
+          { data: parentData },
+          { data: precepteurData },
+          { data: eleveData },
+          { data: matiereData }
+        ] = await Promise.all([
+          supabase
+            .from('parents')
+            .select(`
+              user_id,
+              user:users!parents_user_id_fkey(
+                id,
+                username,
+                email
+              )
+            `)
+            .eq('id', contract.parent_id)
+            .single(),
+          
+          supabase
+            .from('precepteurs')
+            .select(`
+              user:users!precepteurs_user_id_fkey(
+                username
+              )
+            `)
+            .eq('id', contract.precepteur_id)
+            .single(),
+          
+          supabase
+            .from('eleves')
+            .select('prenom, nom')
+            .eq('id', contract.eleve_id)
+            .single(),
+          
+          supabase
+            .from('matieres')
+            .select('nom, niveau')
+            .eq('id', contract.matiere_id)
+            .single()
+        ])
+
+        const parentUser = Array.isArray(parentData?.user) 
+          ? parentData?.user[0] 
+          : parentData?.user
+        
+        const precepteurUser = Array.isArray(precepteurData?.user) 
+          ? precepteurData?.user[0] 
+          : precepteurData?.user
+
+        const parentEmail = parentUser?.email
+        const parentName = parentUser?.username || 'Parent'
+        const precepteurName = precepteurUser?.username || 'Précepteur'
+        const eleveName = eleveData ? `${eleveData.prenom} ${eleveData.nom}` : 'Élève'
+        const matiereName = matiereData 
+          ? `${matiereData.nom} ${matiereData.niveau ? `(${matiereData.niveau})` : ''}`
+          : 'Matière'
+
+        if (parentEmail) {
+          const isAccepted = newStatus === 'accepte'
+          
+          const response = await fetch('/api/send-contract-status-email', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              to: parentEmail,
+              parentName,
+              precepteurName,
+              eleveName,
+              matiere: matiereName,
+              dateDebut: contract.date_debut 
+                ? new Date(contract.date_debut).toLocaleDateString('fr-FR') 
+                : 'N/A',
+              dateFin: contract.date_fin 
+                ? new Date(contract.date_fin).toLocaleDateString('fr-FR') 
+                : 'N/A',
+              status: newStatus,
+              isAccepted,
+              contractId: contract.id
+            })
+          })
+
+          const result = await response.json()
+          if (result.success) {
+            console.log('✅ Email envoyé au parent:', parentEmail)
+          } else {
+            console.error('❌ Erreur envoi email:', result.error)
+          }
+        }
+
+        if (parentData?.user_id) {
+          try {
+            const isAccepted = newStatus === 'accepte'
+            const { error: notifError } = await supabase
+              .from('notifications')
+              .insert({
+                user_id: parentData.user_id,
+                titre: isAccepted ? '✅ Contrat accepté !' : '❌ Contrat refusé',
+                message: isAccepted 
+                  ? `${precepteurName} a accepté votre demande de contrat pour ${eleveName} en ${matiereName}`
+                  : `${precepteurName} a refusé votre demande de contrat pour ${eleveName} en ${matiereName}`,
+                type: 'contrat',
+                lien: `/dashboard/parent/contrats/${contractId}`,
+                lu: false
+              })
+
+            if (notifError) {
+              console.warn('⚠️ Erreur notification:', notifError.message)
+            } else {
+              console.log('✅ Notification créée pour le parent')
+            }
+          } catch (notifCatchError: any) {
+            console.warn('⚠️ Table notifications peut ne pas exister:', notifCatchError?.message)
+          }
+        }
+
+      } catch (emailError: any) {
+        console.error('❌ Erreur lors de l\'envoi:', emailError?.message || emailError)
+      }
+    }
+
+    await loadContrats()
+    setMessage(`Contrat ${newStatus.replace('_', ' ')} avec succès`)
+    setTimeout(() => setMessage(''), 3000)
   }
 
-  // 3. Recharger les contrats
-  await loadContrats()
-  setMessage(`Contrat ${newStatus.replace('_', ' ')} avec succès`)
-  setTimeout(() => setMessage(''), 3000)
-}
-
-
-
-
-
-
-
-
-  // Gestion des sessions
   const handleSessionStatusChange = async (sessionId: number, newStatus: string) => {
     const { error } = await supabase
       .from('sessions_cours')
@@ -1129,7 +984,6 @@ const handleContractStatusChange = async (contractId: number, newStatus: string)
     }
   }
 
-  // Stats pour les contrats
   const totalContrats = contrats.length
   const contratsActifs = contrats.filter(c => c.statut === 'actif' || c.statut === 'accepte').length
   const contratsEnAttente = contrats.filter(c => c.statut === 'en_attente').length
@@ -1137,7 +991,6 @@ const handleContractStatusChange = async (contractId: number, newStatus: string)
   const sessionsPlanifiees = contrats.reduce((acc, c) => acc + (c.sessions?.filter(s => s.statut === 'planifie').length || 0), 0)
   const sessionsEnCours = contrats.reduce((acc, c) => acc + (c.sessions?.filter(s => s.statut === 'en_cours').length || 0), 0)
 
-  // Élèves uniques
   const elevesUniques = [...new Set(contrats.map(c => `${c.eleve?.prenom} ${c.eleve?.nom}`))]
 
   if (loading) {
@@ -1155,68 +1008,67 @@ const handleContractStatusChange = async (contractId: number, newStatus: string)
   return (
     <div className="max-w-6xl mx-auto px-4 py-8">
       {/* Message */}
-{precepteurInfo && (
-  !precepteurInfo.commune || 
-  !precepteurInfo.quartier || 
-  !precepteurInfo.diplome || 
-  !precepteurInfo.etablissement_origine || 
-  precepteurInfo.annees_experience === 0 || 
-  precepteurInfo.statut_verification === 'en_attente' || 
-  precepteurInfo.statut_verification === 'rejete'
-) && (
-  <div className="mb-6 bg-red-50 border border-red-200 rounded-xl p-4 flex items-start gap-3">
-    <div className="flex-shrink-0 mt-0.5">
-      <AlertCircle className="w-5 h-5 text-red-600" />
-    </div>
-    <div className="flex-1">
-      <h3 className="text-sm font-semibold text-red-800 mb-1">
-        {precepteurInfo.statut_verification === 'rejete' 
-          ? 'Votre dossier a été rejeté' 
-          : precepteurInfo.statut_verification === 'en_attente'
-          ? 'Votre dossier est en attente de vérification '
-          : 'Profil incomplet'}
-      </h3>
-     <p className="text-sm text-red-700">
-  {precepteurInfo.statut_verification === 'rejete' 
-    ? 'Votre dossier a été rejeté par notre administration. Veuillez mettre à jour vos informations et soumettre à nouveau votre dossier.'
-    : 'Veuillez cliquer sur "Modifier le profil" pour compléter vos informations. Une fois votre profil mis à jour, notre administration vérifiera votre dossier dans un délai de 24 heures. Pensez à revenir vérifier si votre dossier a été accepté ou rejeté.'}
-</p>
-      <button
-        onClick={openModal}
-        className="mt-3 px-4 py-2 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2"
-      >
-        <Edit3 className="w-4 h-4" />
-        Modifier le profil
-      </button>
-    </div>
-  </div>
-)}
+      {precepteurInfo && (
+        !precepteurInfo.commune || 
+        !precepteurInfo.quartier || 
+        !precepteurInfo.diplome || 
+        !precepteurInfo.etablissement_origine || 
+        precepteurInfo.annees_experience === 0 || 
+        precepteurInfo.statut_verification === 'en_attente' || 
+        precepteurInfo.statut_verification === 'rejete'
+      ) && (
+        <div className="mb-6 bg-red-50 border border-red-200 rounded-xl p-4 flex items-start gap-3">
+          <div className="flex-shrink-0 mt-0.5">
+            <AlertCircle className="w-5 h-5 text-red-600" />
+          </div>
+          <div className="flex-1">
+            <h3 className="text-sm font-semibold text-red-800 mb-1">
+              {precepteurInfo.statut_verification === 'rejete' 
+                ? 'Votre dossier a été rejeté' 
+                : precepteurInfo.statut_verification === 'en_attente'
+                ? 'Votre dossier est en attente de vérification '
+                : 'Profil incomplet'}
+            </h3>
+            <p className="text-sm text-red-700">
+              {precepteurInfo.statut_verification === 'rejete' 
+                ? 'Votre dossier a été rejeté par notre administration. Veuillez mettre à jour vos informations et soumettre à nouveau votre dossier.'
+                : 'Veuillez cliquer sur "Modifier le profil" pour compléter vos informations. Une fois votre profil mis à jour, notre administration vérifiera votre dossier dans un délai de 24 heures. Pensez à revenir vérifier si votre dossier a été accepté ou rejeté.'}
+            </p>
+            <button
+              onClick={openModal}
+              className="mt-3 px-4 py-2 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2"
+            >
+              <Edit3 className="w-4 h-4" />
+              Modifier le profil
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* En-tête profil */}
-      <div className="bg-white rounded-2xl mb-6">
+      <div className="bg-white rounded-2xl mb-6 p-6">
         <div className="flex flex-col md:flex-row md:items-start gap-6 mb-6">
-        <div className="relative group w-24 h-24 flex-shrink-0">
-  {user.photo_profil ? (
-    <img src={user.photo_profil} alt="Profile" className="w-24 h-24 rounded-full object-cover" />
-  ) : (
-    <div className="w-24 h-24 rounded-full bg-gray-200 flex items-center justify-center">
-      <User className="w-10 h-10 text-gray-400" />
-    </div>
-  )}
-  <label className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full opacity-0 group-hover:opacity-100 cursor-pointer transition-opacity">
-    <Upload className="w-5 h-5 text-white" />
-    <input type="file" accept="image/*" onChange={handlePhotoUpload} className="hidden" disabled={uploading} />
-  </label>
-</div>
+          <div className="relative group w-24 h-24 flex-shrink-0">
+            {user.photo_profil ? (
+              <img src={user.photo_profil} alt="Profile" className="w-24 h-24 rounded-full object-cover" />
+            ) : (
+              <div className="w-24 h-24 rounded-full bg-gray-200 flex items-center justify-center">
+                <User className="w-10 h-10 text-gray-400" />
+              </div>
+            )}
+            <label className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full opacity-0 group-hover:opacity-100 cursor-pointer transition-opacity">
+              <Upload className="w-5 h-5 text-white" />
+              <input type="file" accept="image/*" onChange={handlePhotoUpload} className="hidden" disabled={uploading} />
+            </label>
+          </div>
           <div className="flex-1">
-            <h1 className="text-2xl font-bold">{user.username}
-
- {precepteurInfo?.statut_verification === 'verifie' && (
-                <span className="text-sm font-normal   text-blue-700 px-2 py-0.5 rounded-full inline-flex items-center gap-1">
-               -  <CheckBadgeIcon className="w-5 h-5" /> Vérifié
+            <h1 className="text-2xl font-bold">
+              {user.username}
+              {precepteurInfo?.statut_verification === 'verifie' && (
+                <span className="text-sm font-normal text-blue-700 px-2 py-0.5 rounded-full inline-flex items-center gap-1">
+                  - <CheckBadgeIcon className="w-5 h-5" /> Vérifié
                 </span>
               )}
-
             </h1>
             <p className="text-gray-600 flex items-center gap-2 mt-1">
               <GraduationCap className="w-4 h-4" />
@@ -1239,7 +1091,6 @@ const handleContractStatusChange = async (contractId: number, newStatus: string)
               <Star className="w-4 h-4 text-yellow-500" />
               <span className="text-sm font-medium">{precepteurInfo?.note_moyenne?.toFixed(1) || '0.0'}/5</span>
               <span className="text-xs text-gray-400">(0 évaluations)</span>
-             
               {precepteurInfo?.statut_verification === 'en_attente' && (
                 <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full flex items-center gap-1">
                   <Clock className="w-3 h-3" /> En attente
@@ -1349,6 +1200,17 @@ const handleContractStatusChange = async (contractId: number, newStatus: string)
         >
           <FileText className="w-4 h-4" /> Documents
         </button>
+
+      <button
+  onClick={() => setActiveTab('services')}
+  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${
+    activeTab === 'services' ? 'bg-black text-white' : 'bg-white text-gray-600 hover:bg-gray-50'
+  }`}
+>
+  <BookOpen className="w-4 h-4" /> Mes Services
+</button>
+
+ 
       </div>
 
       {/* Profil */}
@@ -1379,15 +1241,14 @@ const handleContractStatusChange = async (contractId: number, newStatus: string)
                 </p>
                 <p className="font-medium text-gray-900">{precepteurInfo?.commune || 'Non spécifié'}</p>
               </div>
-   <div>
-          <p className="text-xs text-gray-500 mb-1 flex items-center gap-1">
-            <Phone className="w-3 h-3" /> Téléphone
-          </p>
-          <p className="font-medium text-gray-900">
-            {precepteurInfo?.telephone || 'Non spécifié'}
-          </p>
-        </div>
-              
+              <div>
+                <p className="text-xs text-gray-500 mb-1 flex items-center gap-1">
+                  <Phone className="w-3 h-3" /> Téléphone
+                </p>
+                <p className="font-medium text-gray-900">
+                  {precepteurInfo?.telephone || 'Non spécifié'}
+                </p>
+              </div>
               <div>
                 <p className="text-xs text-gray-500 mb-1 flex items-center gap-1">
                   <MapPin className="w-3 h-3" /> Quartier
@@ -1507,341 +1368,329 @@ const handleContractStatusChange = async (contractId: number, newStatus: string)
         </div>
       )}
 
-      {/* Contrats */}
-{/* Contrats */}
-{activeTab === 'contrats' && (
-  <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
-    <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/50 flex items-center justify-between">
-      <div>
-        <h3 className="font-semibold text-gray-900 flex items-center gap-2">
-          <FileText className="w-5 h-5 text-gray-700" />
-          Mes contrats
-        </h3>
-        <p className="text-sm text-gray-500 mt-0.5">{contrats.length} contrat{contrats.length > 1 ? 's' : ''}</p>
-      </div>
       
-    <button
-  onClick={async () => {
-    const contratActif = contrats.find(c => c.statut === 'actif' || c.statut === 'accepte')
-    if (contratActif) {
-      setSelectedContractForSession(contratActif)
-      setShowCreateSessionModal(true)
-    }
-  }}
-  disabled={!contrats.some(c => c.statut === 'actif' || c.statut === 'accepte') || creatingSession}
-  className={`px-4 py-2 text-sm rounded-xl transition-colors flex items-center gap-2 font-medium ${
-    contrats.some(c => c.statut === 'actif' || c.statut === 'accepte') && !creatingSession
-      ? 'bg-black text-white hover:bg-gray-800'
-      : 'bg-gray-200 text-gray-400 cursor-not-allowed'
-  }`}
->
-  {creatingSession ? (
-    <>
-      <RefreshCw className="w-4 h-4 animate-spin" />
-      Création...
-    </>
-  ) : (
-    <>
-      <Plus className="w-4 h-4" />
-      Planifier une session
-    </>
-  )}
-</button>
-    </div>
 
-    {contrats.length === 0 ? (
-      <div className="flex flex-col items-center justify-center py-16 px-6">
-        <FileText className="w-16 h-16 text-gray-300 mb-4" />
-        <p className="text-gray-500 text-lg font-medium mb-1">Aucun contrat</p>
-        <p className="text-gray-400 text-sm">Les contrats apparaîtront ici une fois que des parents vous contacteront.</p>
-      </div>
-    ) : (
-      <div className="divide-y divide-gray-100">
-        {contrats.map((contrat) => (
-          <div key={contrat.id}>
-            {/* Contrat principal - cliquable pour voir les détails */}
-            <div 
-              className="p-4 hover:bg-gray-50/50 transition-colors group flex items-center gap-4 cursor-pointer"
-              onClick={() => openContractDetail(contrat)}
-            >
-              {/* Icône avec statut */}
-              <div className="flex-shrink-0">
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-                  contrat.statut === 'actif' ? 'bg-green-100' : 
-                  contrat.statut === 'accepte' ? 'bg-blue-100' :
-                  contrat.statut === 'en_attente' ? 'bg-yellow-100' : 
-                  contrat.statut === 'refuse' || contrat.statut === 'annule' ? 'bg-red-100' :
-                  'bg-gray-100'
-                }`}>
-                  <FileText className={`w-5 h-5 ${
-                    contrat.statut === 'actif' ? 'text-green-600' : 
-                    contrat.statut === 'accepte' ? 'text-blue-600' :
-                    contrat.statut === 'en_attente' ? 'text-yellow-600' : 
-                    contrat.statut === 'refuse' || contrat.statut === 'annule' ? 'text-red-600' :
-                    'text-gray-600'
-                  }`} />
-                </div>
-              </div>
-
-              {/* Infos principales */}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1">
-                  <p className="font-medium text-gray-900 truncate">
-                    {contrat.matiere?.nom || 'Matière'}
-                  </p>
-                  <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${getContratStatutColor(contrat.statut)}`}>
-                    {getStatutIcon(contrat.statut)}
-                    {contrat.statut.replace('_', ' ')}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2 text-xs text-gray-500">
-                  <span className="flex items-center gap-1">
-                    <User className="w-3 h-3" />
-                    {contrat.eleve?.prenom} {contrat.eleve?.nom}
-                  </span>
-                  <span>•</span>
-                  <span>{contrat.eleve?.niveau}</span>
-                  <span>•</span>
-                  <span className="capitalize">{contrat.type_contrat}</span>
-                  {contrat.tarif_horaire && (
-                    <>
-                      <span>•</span>
-                      <span className="text-green-600 font-medium">{contrat.tarif_horaire.toLocaleString()} FC/h</span>
-                    </>
-                  )}
-                </div>
-              </div>
-
-              {/* Date et fréquence */}
-              <div className="text-right flex-shrink-0 hidden sm:block">
-                <p className="text-sm font-medium text-gray-900">
-                  {new Date(contrat.date_debut).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
-                  {' - '}
-                  {new Date(contrat.date_fin).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
-                </p>
-                <p className="text-xs text-gray-500 mt-0.5 capitalize">{contrat.frequence}</p>
-              </div>
-
-              {/* Badge sessions */}
-              {contrat.sessions && contrat.sessions.length > 0 && (
-                <div className="flex-shrink-0 hidden md:block">
-                  <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 text-blue-700 rounded-full text-xs font-medium">
-                    <BookOpen className="w-3 h-3" />
-                    {contrat.sessions.length} session{contrat.sessions.length > 1 ? 's' : ''}
-                  </span>
-                </div>
-              )}
-
-              {/* Actions - visibles au survol */}
-              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
-                {/* Planifier une session pour ce contrat */}
-                {(contrat.statut === 'actif' || contrat.statut === 'accepte') && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      setSelectedContractForSession(contrat)
-                      setShowCreateSessionModal(true)
-                    }}
-                    className="p-2 text-gray-500 hover:text-green-600 hover:bg-green-50 rounded-lg transition-all"
-                    title="Planifier une session"
-                  >
-                    <Plus className="w-5 h-5" />
-                  </button>
-                )}
-                
-                {/* Voir détails */}
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    openContractDetail(contrat)
-                  }}
-                  className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
-                  title="Voir les détails"
-                >
-                  <Eye className="w-5 h-5" />
-                </button>
-                
-                {/* Accepter/Refuser */}
-                {contrat.statut === 'en_attente' && (
-                  <>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        handleContractStatusChange(contrat.id, 'accepte')
-                      }}
-                      className="p-2 text-gray-500 hover:text-green-600 hover:bg-green-50 rounded-lg transition-all"
-                      title="Accepter"
-                    >
-                      <Check className="w-5 h-5" />
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        handleContractStatusChange(contrat.id, 'refuse')
-                      }}
-                      className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
-                      title="Refuser"
-                    >
-                      <X className="w-5 h-5" />
-                    </button>
-                  </>
-                )}
-              </div>
+      {/* Contrats */}
+      {activeTab === 'contrats' && (
+        <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/50 flex items-center justify-between">
+            <div>
+              <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                <FileText className="w-5 h-5 text-gray-700" />
+                Mes contrats
+              </h3>
+              <p className="text-sm text-gray-500 mt-0.5">{contrats.length} contrat{contrats.length > 1 ? 's' : ''}</p>
             </div>
+            
+            <button
+              onClick={async () => {
+                const contratActif = contrats.find(c => c.statut === 'actif' || c.statut === 'accepte')
+                if (contratActif) {
+                  setSelectedContractForSession(contratActif)
+                  setShowCreateSessionModal(true)
+                }
+              }}
+              disabled={!contrats.some(c => c.statut === 'actif' || c.statut === 'accepte') || creatingSession}
+              className={`px-4 py-2 text-sm rounded-xl transition-colors flex items-center gap-2 font-medium ${
+                contrats.some(c => c.statut === 'actif' || c.statut === 'accepte') && !creatingSession
+                  ? 'bg-black text-white hover:bg-gray-800'
+                  : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+              }`}
+            >
+              {creatingSession ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  Création...
+                </>
+              ) : (
+                <>
+                  <Plus className="w-4 h-4" />
+                  Planifier une session
+                </>
+              )}
+            </button>
+          </div>
 
-            {/* Sessions du contrat - visibles directement */}
-            {contrat.sessions && contrat.sessions.length > 0 && (
-              <div className="bg-gray-50/30 border-t border-gray-100">
-                <div className="px-6 py-2 flex items-center justify-between">
-                  <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Sessions ({contrat.sessions.length})
-                  </p>
-                  {(contrat.statut === 'actif' || contrat.statut === 'accepte') && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        setSelectedContractForSession(contrat)
-                        setShowCreateSessionModal(true)
-                      }}
-                      className="text-xs text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1"
-                    >
-                      <Plus className="w-3 h-3" />
-                      Ajouter une session
-                    </button>
-                  )}
-                </div>
-                <div className="divide-y divide-gray-100">
-                  {contrat.sessions.map((session) => (
-                    <div
-                      key={session.id}
-                      className="px-6 py-2.5 hover:bg-gray-50/50 transition-colors group/session flex items-center justify-between cursor-pointer"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        openSessionDetail(session)
-                      }}
-                    >
-                      <div className="flex items-center gap-3">
-                        {/* Statut */}
-                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${getSessionStatutColor(session.statut)}`}>
-                          {getStatutIcon(session.statut)}
-                          {session.statut.replace('_', ' ')}
-                        </span>
-                        {/* Date */}
-                        <span className="text-sm text-gray-700">
-                          {new Date(session.date_session).toLocaleDateString('fr-FR', { 
-                            weekday: 'short', 
-                            day: 'numeric', 
-                            month: 'short' 
-                          })}
+          {contrats.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 px-6">
+              <FileText className="w-16 h-16 text-gray-300 mb-4" />
+              <p className="text-gray-500 text-lg font-medium mb-1">Aucun contrat</p>
+              <p className="text-gray-400 text-sm">Les contrats apparaîtront ici une fois que des parents vous contacteront.</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-gray-100">
+              {contrats.map((contrat) => (
+                <div key={contrat.id}>
+                  <div 
+                    className="p-4 hover:bg-gray-50/50 transition-colors group flex items-center gap-4 cursor-pointer"
+                    onClick={() => openContractDetail(contrat)}
+                  >
+                    <div className="flex-shrink-0">
+                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                        contrat.statut === 'actif' ? 'bg-green-100' : 
+                        contrat.statut === 'accepte' ? 'bg-blue-100' :
+                        contrat.statut === 'en_attente' ? 'bg-yellow-100' : 
+                        contrat.statut === 'refuse' || contrat.statut === 'annule' ? 'bg-red-100' :
+                        'bg-gray-100'
+                      }`}>
+                        <FileText className={`w-5 h-5 ${
+                          contrat.statut === 'actif' ? 'text-green-600' : 
+                          contrat.statut === 'accepte' ? 'text-blue-600' :
+                          contrat.statut === 'en_attente' ? 'text-yellow-600' : 
+                          contrat.statut === 'refuse' || contrat.statut === 'annule' ? 'text-red-600' :
+                          'text-gray-600'
+                        }`} />
+                      </div>
+                    </div>
+
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <p className="font-medium text-gray-900 truncate">
+                          {contrat.matiere?.nom || 'Matière'}
+                        </p>
+                        <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${getContratStatutColor(contrat.statut)}`}>
+                          {getStatutIcon(contrat.statut)}
+                          {contrat.statut.replace('_', ' ')}
                         </span>
                       </div>
+                      <div className="flex items-center gap-2 text-xs text-gray-500">
+                        <span className="flex items-center gap-1">
+                          <User className="w-3 h-3" />
+                          {contrat.eleve?.prenom} {contrat.eleve?.nom}
+                        </span>
+                        <span>•</span>
+                        <span>{contrat.eleve?.niveau}</span>
+                        <span>•</span>
+                        <span className="capitalize">{contrat.type_contrat}</span>
+                        {contrat.tarif_horaire && (
+                          <>
+                            <span>•</span>
+                            <span className="text-green-600 font-medium">{contrat.tarif_horaire.toLocaleString()} FC/h</span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="text-right flex-shrink-0 hidden sm:block">
+                      <p className="text-sm font-medium text-gray-900">
+                        {new Date(contrat.date_debut).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
+                        {' - '}
+                        {new Date(contrat.date_fin).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
+                      </p>
+                      <p className="text-xs text-gray-500 mt-0.5 capitalize">{contrat.frequence}</p>
+                    </div>
+
+                    {contrat.sessions && contrat.sessions.length > 0 && (
+                      <div className="flex-shrink-0 hidden md:block">
+                        <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 text-blue-700 rounded-full text-xs font-medium">
+                          <BookOpen className="w-3 h-3" />
+                          {contrat.sessions.length} session{contrat.sessions.length > 1 ? 's' : ''}
+                        </span>
+                      </div>
+                    )}
+
+                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                      {(contrat.statut === 'actif' || contrat.statut === 'accepte') && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setSelectedContractForSession(contrat)
+                            setShowCreateSessionModal(true)
+                          }}
+                          className="p-2 text-gray-500 hover:text-green-600 hover:bg-green-50 rounded-lg transition-all"
+                          title="Planifier une session"
+                        >
+                          <Plus className="w-5 h-5" />
+                        </button>
+                      )}
                       
-                      <div className="flex items-center gap-3">
-                        {/* Horaires et type */}
-                        <div className="flex items-center gap-2 text-xs text-gray-500">
-                          <span className="flex items-center gap-1">
-                            <Clock className="w-3 h-3" />
-                            {session.heure_debut?.slice(0, 5)} - {session.heure_fin?.slice(0, 5)}
-                          </span>
-                          <span>•</span>
-                          <span>{session.duree_minutes} min</span>
-                          <span>•</span>
-                          <span className="capitalize">{session.type_session?.replace('_', ' ')}</span>
-                          {session.lieu && (
-                            <>
-                              <span>•</span>
-                              <span className="flex items-center gap-1">
-                                <MapPin className="w-3 h-3" />
-                                {session.lieu}
-                              </span>
-                            </>
-                          )}
-                        </div>
-                        
-                        {/* Actions rapides - visibles au survol de la session */}
-                        <div className="flex items-center gap-1 opacity-0 group-hover/session:opacity-100 transition-opacity">
-                          {session.statut === 'planifie' && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                handleSessionStatusChange(session.id, 'en_cours')
-                              }}
-                              className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
-                              title="Démarrer la session"
-                            >
-                              <Play className="w-3.5 h-3.5" />
-                            </button>
-                          )}
-                          {session.statut === 'en_cours' && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                handleSessionStatusChange(session.id, 'termine')
-                              }}
-                              className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-all"
-                              title="Terminer la session"
-                            >
-                              <StopCircle className="w-3.5 h-3.5" />
-                            </button>
-                          )}
-                          {session.statut === 'planifie' && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                handleSessionStatusChange(session.id, 'annule')
-                              }}
-                              className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
-                              title="Annuler la session"
-                            >
-                              <X className="w-3.5 h-3.5" />
-                            </button>
-                          )}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          openContractDetail(contrat)
+                        }}
+                        className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
+                        title="Voir les détails"
+                      >
+                        <Eye className="w-5 h-5" />
+                      </button>
+                      
+                      {contrat.statut === 'en_attente' && (
+                        <>
                           <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleContractStatusChange(contrat.id, 'accepte')
+                            }}
+                            className="p-2 text-gray-500 hover:text-green-600 hover:bg-green-50 rounded-lg transition-all"
+                            title="Accepter"
+                          >
+                            <Check className="w-5 h-5" />
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleContractStatusChange(contrat.id, 'refuse')
+                            }}
+                            className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                            title="Refuser"
+                          >
+                            <X className="w-5 h-5" />
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Sessions du contrat */}
+                  {contrat.sessions && contrat.sessions.length > 0 && (
+                    <div className="bg-gray-50/30 border-t border-gray-100">
+                      <div className="px-6 py-2 flex items-center justify-between">
+                        <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Sessions ({contrat.sessions.length})
+                        </p>
+                        {(contrat.statut === 'actif' || contrat.statut === 'accepte') && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setSelectedContractForSession(contrat)
+                              setShowCreateSessionModal(true)
+                            }}
+                            className="text-xs text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1"
+                          >
+                            <Plus className="w-3 h-3" />
+                            Ajouter une session
+                          </button>
+                        )}
+                      </div>
+                      <div className="divide-y divide-gray-100">
+                        {contrat.sessions.map((session) => (
+                          <div
+                            key={session.id}
+                            className="px-6 py-2.5 hover:bg-gray-50/50 transition-colors group/session flex items-center justify-between cursor-pointer"
                             onClick={(e) => {
                               e.stopPropagation()
                               openSessionDetail(session)
                             }}
-                            className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
-                            title="Voir les détails"
                           >
-                            <Eye className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
+                            <div className="flex items-center gap-3">
+                              <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${getSessionStatutColor(session.statut)}`}>
+                                {getStatutIcon(session.statut)}
+                                {session.statut.replace('_', ' ')}
+                              </span>
+                              <span className="text-sm text-gray-700">
+                                {new Date(session.date_session).toLocaleDateString('fr-FR', { 
+                                  weekday: 'short', 
+                                  day: 'numeric', 
+                                  month: 'short' 
+                                })}
+                              </span>
+                            </div>
+                            
+                            <div className="flex items-center gap-3">
+                              <div className="flex items-center gap-2 text-xs text-gray-500">
+                                <span className="flex items-center gap-1">
+                                  <Clock className="w-3 h-3" />
+                                  {session.heure_debut?.slice(0, 5)} - {session.heure_fin?.slice(0, 5)}
+                                </span>
+                                <span>•</span>
+                                <span>{session.duree_minutes} min</span>
+                                <span>•</span>
+                                <span className="capitalize">{session.type_session?.replace('_', ' ')}</span>
+                                {session.lieu && (
+                                  <>
+                                    <span>•</span>
+                                    <span className="flex items-center gap-1">
+                                      <MapPin className="w-3 h-3" />
+                                      {session.lieu}
+                                    </span>
+                                  </>
+                                )}
+                              </div>
+                              
+                              <div className="flex items-center gap-1 opacity-0 group-hover/session:opacity-100 transition-opacity">
+                                {session.statut === 'planifie' && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      handleSessionStatusChange(session.id, 'en_cours')
+                                    }}
+                                    className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
+                                    title="Démarrer la session"
+                                  >
+                                    <Play className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+                                {session.statut === 'en_cours' && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      handleSessionStatusChange(session.id, 'termine')
+                                    }}
+                                    className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-all"
+                                    title="Terminer la session"
+                                  >
+                                    <StopCircle className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+                                {session.statut === 'planifie' && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      handleSessionStatusChange(session.id, 'annule')
+                                    }}
+                                    className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                                    title="Annuler la session"
+                                  >
+                                    <X className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    openSessionDetail(session)
+                                  }}
+                                  className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
+                                  title="Voir les détails"
+                                >
+                                  <Eye className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     </div>
-                  ))}
+                  )}
+                  
+                  {(!contrat.sessions || contrat.sessions.length === 0) && (contrat.statut === 'actif' || contrat.statut === 'accepte') && (
+                    <div className="bg-gray-50/30 border-t border-gray-100 px-6 py-3">
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs text-gray-400 flex items-center gap-1">
+                          <Calendar className="w-3 h-3" />
+                          Aucune session planifiée pour ce contrat
+                        </p>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setSelectedContractForSession(contrat)
+                            setShowCreateSessionModal(true)
+                          }}
+                          className="text-xs text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1"
+                        >
+                          <Plus className="w-3 h-3" />
+                          Planifier une session
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
-              </div>
-            )}
-            
-            {/* Message si pas de sessions mais contrat actif */}
-            {(!contrat.sessions || contrat.sessions.length === 0) && (contrat.statut === 'actif' || contrat.statut === 'accepte') && (
-              <div className="bg-gray-50/30 border-t border-gray-100 px-6 py-3">
-                <div className="flex items-center justify-between">
-                  <p className="text-xs text-gray-400 flex items-center gap-1">
-                    <Calendar className="w-3 h-3" />
-                    Aucune session planifiée pour ce contrat
-                  </p>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      setSelectedContractForSession(contrat)
-                      setShowCreateSessionModal(true)
-                    }}
-                    className="text-xs text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1"
-                  >
-                    <Plus className="w-3 h-3" />
-                    Planifier une session
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
-    )}
-  </div>
-)}
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Documents */}
       {activeTab === 'documents' && (
         <div className="bg-white rounded-2xl p-6">
@@ -1852,26 +1701,24 @@ const handleContractStatusChange = async (contractId: number, newStatus: string)
         </div>
       )}
 
+{activeTab === 'services' && (
+  <div className="bg-white rounded-2xl p-6">
+    {/* ✅ Vérifiez que precepteurInfo existe et a un id */}
+    {precepteurInfo?.id ? (
+      <ServiceManager precepteurId={precepteurInfo.id} isOwner={true} />
+    ) : (
+      <div className="text-center py-8">
+        <p className="text-gray-500">Chargement du profil précepteur...</p>
+      </div>
+    )}
+  </div>
+)}
       {/* Modal de modification du profil */}
       {showModal && (
         <ProfilModal
           isOpen={showModal}
           onClose={() => setShowModal(false)}
-          onSave={async (data) => {
-       
-            setSaving(true)
-            setMessage('')
-            const result = await updatePrecepteurProfil(data)
-            if (!result.error) {
-              setShowModal(false)
-              setMessage('Profil mis à jour avec succès')
-              await refreshUser()
-            } else {
-              setMessage(result.error)
-            }
-            setSaving(false)
-            setTimeout(() => setMessage(''), 3000)
-          }}
+          onSave={handleSave}
           initialData={form}
           selectedMatieres={selectedMatieres}
           onMatieresChange={setSelectedMatieres}
@@ -1886,24 +1733,26 @@ const handleContractStatusChange = async (contractId: number, newStatus: string)
         onClose={() => setShowContractModal(false)}
         onStatusChange={handleContractStatusChange}
       />
-{/* Modal de création de session */}
-<CreateSessionModal
-  contract={selectedContractForSession}
-  isOpen={showCreateSessionModal}
-  onClose={() => {
-    setShowCreateSessionModal(false)
-    setSelectedContractForSession(null)
-     setCreatingSession(false)
-  }}
-  onSuccess={() => {
-    loadContrats()
-    setMessage('Session planifiée avec succès !')
-    setTimeout(() => setMessage(''), 3000)
-     setCreatingSession(false)
-  }}
-   onCreating={() => setCreatingSession(true)}
-  onError={() => setCreatingSession(false)}
-/>
+
+      {/* Modal de création de session */}
+      <CreateSessionModal
+        contract={selectedContractForSession}
+        isOpen={showCreateSessionModal}
+        onClose={() => {
+          setShowCreateSessionModal(false)
+          setSelectedContractForSession(null)
+          setCreatingSession(false)
+        }}
+        onSuccess={() => {
+          loadContrats()
+          setMessage('Session planifiée avec succès !')
+          setTimeout(() => setMessage(''), 3000)
+          setCreatingSession(false)
+        }}
+        onCreating={() => setCreatingSession(true)}
+        onError={() => setCreatingSession(false)}
+      />
+
       {/* Modal de détail session */}
       <SessionDetailModal
         session={selectedSession}

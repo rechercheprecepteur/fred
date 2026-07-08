@@ -6,10 +6,11 @@ import { useEffect, useState } from 'react'
 import { ArrowRight, Star, Users, Calendar, CheckCircle, GraduationCap, Shield, Sparkles } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import { PiSignOut } from 'react-icons/pi'
+import { logout } from '@/utils/auth'
 
 export default function Home() {
   const [scrolled, setScrolled] = useState(false)
-  const { user, logoutUser, loading } = useAuth()
+  const { user, logout, loading } = useAuth()
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 50)
@@ -18,7 +19,7 @@ export default function Home() {
   }, [])
 
   const handleLogout = async () => {
-    await logoutUser()
+    await logout()
   }
 
   // Fonction helper pour obtenir le lien du dashboard selon le rôle

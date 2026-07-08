@@ -198,7 +198,7 @@ export default function ContractDetailPage() {
         )
       `)
       .eq('id', contractId)
-      .eq('precepteur_id', precepteurInfo.id)
+        .eq('precepteur_id', precepteurInfo ? precepteurInfo.id : null)
       .single()
 
     if (error) {
@@ -230,6 +230,12 @@ export default function ContractDetailPage() {
     } else {
       // Envoyer notification si accepté ou refusé
       if (newStatus === 'accepte' || newStatus === 'refuse') {
+        if (!precepteurInfo) {
+          console.error('Précepteur introuvable')
+          setMessage('Précepteur introuvable')
+          setLoading(false)
+          return
+        }
         await sendNotificationToParent(newStatus)
       }
       

@@ -1,3 +1,5 @@
+
+
 // // app/components/ProfilModal.tsx
 // 'use client'
 
@@ -9,10 +11,12 @@
 //   PiClock, 
 //   PiGraduationCap, 
 //   PiCheck,
-//   PiFloppyDisk
+//   PiFloppyDisk,
+//   PiPhone  // ← AJOUTER l'icône téléphone
 // } from 'react-icons/pi'
 // import SelectionMatieres from './SelectionMatieres'
 
+// // ← MODIFIER : Ajouter telephone dans l'interface
 // interface ProfilForm {
 //   latitude: string
 //   longitude: string
@@ -21,6 +25,7 @@
 //   annees_experience: number
 //   diplome: string
 //   etablissement_origine: string
+//   telephone: string  // ← AJOUTER
 // }
 
 // interface ProfilModalProps {
@@ -78,6 +83,26 @@
 //         </div>
 
 //         <div className="p-6 space-y-6">
+//           {/* ← AJOUTER : Section Contact */}
+//           <div>
+//             <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+//               <PiPhone className="w-4 h-4 text-gray-700" />
+//               Contact
+//             </h3>
+//             <div className="grid grid-cols-1 gap-3">
+//               <div>
+               
+//                 <input
+//                   type="tel"
+//                   value={form.telephone}
+//                   onChange={(e) => setForm({...form, telephone: e.target.value})}
+//                   className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent transition-all"
+//                   placeholder="+243 812 345 678"
+//                 />
+//               </div>
+//             </div>
+//           </div>
+
 //           {/* Section Matières */}
 //           <div className="bg-gradient-to-br p border-blue-100">
 //             <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
@@ -221,10 +246,10 @@
 //   )
 // }
 
-// app/components/ProfilModal.tsx
+// components/ProfilModal.tsx
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react' // ✅ Ajouter useEffect
 import { 
   PiX, 
   PiBookOpen, 
@@ -233,11 +258,10 @@ import {
   PiGraduationCap, 
   PiCheck,
   PiFloppyDisk,
-  PiPhone  // ← AJOUTER l'icône téléphone
+  PiPhone
 } from 'react-icons/pi'
 import SelectionMatieres from './SelectionMatieres'
 
-// ← MODIFIER : Ajouter telephone dans l'interface
 interface ProfilForm {
   latitude: string
   longitude: string
@@ -246,7 +270,7 @@ interface ProfilForm {
   annees_experience: number
   diplome: string
   etablissement_origine: string
-  telephone: string  // ← AJOUTER
+  telephone: string
 }
 
 interface ProfilModalProps {
@@ -270,13 +294,18 @@ export default function ProfilModal({
 }: ProfilModalProps) {
   const [form, setForm] = useState<ProfilForm>(initialData)
 
-  useState(() => {
-    setForm(initialData)
-  })
+  // ✅ CORRECTION: Utiliser useEffect pour mettre à jour le formulaire quand initialData change
+  useEffect(() => {
+    if (isOpen) {
+      console.log('📋 Initialisation formulaire avec:', initialData) // Pour déboguer
+      setForm(initialData)
+    }
+  }, [isOpen, initialData])
 
   if (!isOpen) return null
 
   const handleSave = async () => {
+    console.log('💾 Sauvegarde des données:', { ...form, matieres: selectedMatieres }) // Pour déboguer
     await onSave({
       ...form,
       matieres: selectedMatieres
@@ -304,7 +333,7 @@ export default function ProfilModal({
         </div>
 
         <div className="p-6 space-y-6">
-          {/* ← AJOUTER : Section Contact */}
+          {/* Section Contact */}
           <div>
             <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
               <PiPhone className="w-4 h-4 text-gray-700" />
@@ -312,10 +341,10 @@ export default function ProfilModal({
             </h3>
             <div className="grid grid-cols-1 gap-3">
               <div>
-               
+                <label className="block text-xs font-medium text-gray-700 mb-1">Téléphone</label>
                 <input
                   type="tel"
-                  value={form.telephone}
+                  value={form.telephone || ''} // ✅ S'assurer que c'est une string
                   onChange={(e) => setForm({...form, telephone: e.target.value})}
                   className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent transition-all"
                   placeholder="+243 812 345 678"
@@ -325,7 +354,7 @@ export default function ProfilModal({
           </div>
 
           {/* Section Matières */}
-          <div className="bg-gradient-to-br p border-blue-100">
+          <div>
             <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
               <PiBookOpen className="w-4 h-4 text-blue-600" />
               Matières enseignées
@@ -352,7 +381,7 @@ export default function ProfilModal({
                 <label className="block text-xs font-medium text-gray-700 mb-1">Commune *</label>
                 <input
                   type="text"
-                  value={form.commune}
+                  value={form.commune || ''}
                   onChange={(e) => setForm({...form, commune: e.target.value})}
                   className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent transition-all"
                   placeholder="Lubumbashi"
@@ -362,7 +391,7 @@ export default function ProfilModal({
                 <label className="block text-xs font-medium text-gray-700 mb-1">Quartier *</label>
                 <input
                   type="text"
-                  value={form.quartier}
+                  value={form.quartier || ''}
                   onChange={(e) => setForm({...form, quartier: e.target.value})}
                   className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent transition-all"
                   placeholder="Golf"
@@ -372,7 +401,7 @@ export default function ProfilModal({
                 <label className="block text-xs font-medium text-gray-700 mb-1">Latitude</label>
                 <input
                   type="text"
-                  value={form.latitude}
+                  value={form.latitude || ''}
                   onChange={(e) => setForm({...form, latitude: e.target.value})}
                   className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent transition-all"
                   placeholder="-11.6646"
@@ -382,7 +411,7 @@ export default function ProfilModal({
                 <label className="block text-xs font-medium text-gray-700 mb-1">Longitude</label>
                 <input
                   type="text"
-                  value={form.longitude}
+                  value={form.longitude || ''}
                   onChange={(e) => setForm({...form, longitude: e.target.value})}
                   className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent transition-all"
                   placeholder="27.4794"
@@ -405,7 +434,7 @@ export default function ProfilModal({
                 </label>
                 <input
                   type="number"
-                  value={form.annees_experience}
+                  value={form.annees_experience || 0}
                   onChange={(e) => setForm({...form, annees_experience: parseInt(e.target.value) || 0})}
                   className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent transition-all"
                   min="0"
@@ -415,7 +444,7 @@ export default function ProfilModal({
                 <label className="block text-xs font-medium text-gray-700 mb-1">Diplôme</label>
                 <input
                   type="text"
-                  value={form.diplome}
+                  value={form.diplome || ''}
                   onChange={(e) => setForm({...form, diplome: e.target.value})}
                   className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent transition-all"
                   placeholder="Licence en Mathématiques"
@@ -425,7 +454,7 @@ export default function ProfilModal({
                 <label className="block text-xs font-medium text-gray-700 mb-1">Établissement d'origine</label>
                 <input
                   type="text"
-                  value={form.etablissement_origine}
+                  value={form.etablissement_origine || ''}
                   onChange={(e) => setForm({...form, etablissement_origine: e.target.value})}
                   className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent transition-all"
                   placeholder="Université de Lubumbashi"

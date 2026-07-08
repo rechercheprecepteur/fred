@@ -112,7 +112,7 @@ export async function POST(request: NextRequest) {
             ` : `
             <div style="text-align: center;">
               <p style="color: #991b1b;">Le précepteur a malheureusement refusé votre demande. Vous pouvez rechercher d'autres précepteurs.</p>
-              <a href="${process.env.NEXT_PUBLIC_APP_URL}/dashboard/parent/recherche" class="button">
+              <a href="${process.env.NEXT_PUBLIC_APP_URL}/recherche" class="button">
                 Rechercher un autre précepteur
               </a>
             </div>
