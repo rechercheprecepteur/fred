@@ -2,7 +2,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { supabase } from '@/lib/supabase'
+import { getMatieres, ajouterMatiere, modifierMatiere, supprimerMatiere } from '@/actions/matieres'
 import { 
   Plus, 
   Search, 
@@ -23,7 +23,7 @@ type Matiere = {
   niveau: string
   description: string | null
   created_at: string
-  updated_at?: string // Ajout du champ optionnel
+  updated_at?: string
 }
 
 export default function AdminMatieresPage() {
@@ -46,42 +46,33 @@ export default function AdminMatieresPage() {
     loadMatieres()
   }, [search])
 
-  // Fonction pour afficher les messages
   const showMessage = (text: string, type: 'success' | 'error') => {
     setMessage({ text, type })
     setTimeout(() => setMessage(null), 3000)
   }
 
-  // ✅ Charger les matières
+  // ✅ Charger les matières depuis l'API Express
   const loadMatieres = async () => {
     setLoading(true)
     try {
-      let query = supabase.from('matieres').select('*').order('nom')
+      const result = await getMatieres(search || undefined)
       
-      if (search) {
-        query = query.ilike('nom', `%${search}%`)
-      }
-      
-      const { data, error } = await query
-      
-      if (error) {
-        console.error('Erreur Supabase:', error)
-        showMessage('❌ Erreur lors du chargement des matières', 'error')
+      if (result.matieres) {
+        setMatieres(result.matieres)
+      } else {
+        showMessage('❌ Erreur lors du chargement', 'error')
         setMatieres([])
-        return
       }
-      
-      setMatieres(data || [])
     } catch (err) {
       console.error('Erreur chargement:', err)
-      showMessage('❌ Erreur inattendue lors du chargement', 'error')
+      showMessage('❌ Erreur inattendue', 'error')
       setMatieres([])
     } finally {
       setLoading(false)
     }
   }
 
-  // ✅ Ajouter
+  // ✅ Ajouter une matière
   const handleAddMatiere = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
@@ -94,33 +85,23 @@ export default function AdminMatieresPage() {
     }
 
     try {
-      const { error: insertError } = await supabase
-        .from('matieres')
-        .insert([{
-          nom: newMatiere.nom.trim(),
-          niveau: newMatiere.niveau,
-          description: newMatiere.description.trim() || null,
-          created_at: new Date().toISOString()
-        }])
+      const result = await ajouterMatiere({
+        nom: newMatiere.nom.trim(),
+        niveau: newMatiere.niveau,
+        description: newMatiere.description.trim() || undefined
+      })
 
-      if (insertError) {
-        console.error('Erreur insertion:', insertError)
-        if (insertError.code === '23505') {
-          setError('Cette matière existe déjà pour ce niveau')
-        } else if (insertError.code === '42P01') {
-          setError('La table matieres n\'existe pas')
-        } else {
-          setError(`Erreur: ${insertError.message}`)
-        }
-      } else {
+      if (result.success) {
         setShowAddModal(false)
         setNewMatiere({ nom: '', niveau: '7ème', description: '' })
         showMessage('✅ Matière ajoutée avec succès', 'success')
         loadMatieres()
+      } else {
+        setError(result.error || 'Erreur lors de l\'ajout')
       }
     } catch (err: any) {
       console.error('Exception:', err)
-      setError(`Erreur inattendue: ${err.message || 'Erreur lors de l\'ajout'}`)
+      setError(`Erreur: ${err.message || 'Erreur inattendue'}`)
     } finally {
       setSubmitting(false)
     }
@@ -138,7 +119,7 @@ export default function AdminMatieresPage() {
     setShowEditModal(true)
   }
 
-  // ✅ Modifier
+  // ✅ Modifier une matière
   const handleEditMatiere = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!selectedMatiere) return
@@ -153,34 +134,23 @@ export default function AdminMatieresPage() {
     }
 
     try {
-      const updateData: any = {
+      const result = await modifierMatiere(selectedMatiere.id, {
         nom: editMatiere.nom.trim(),
         niveau: editMatiere.niveau,
-        description: editMatiere.description.trim() || null,
-        updated_at: new Date().toISOString()
-      }
+        description: editMatiere.description.trim() || undefined
+      })
 
-      const { error: updateError } = await supabase
-        .from('matieres')
-        .update(updateData)
-        .eq('id', selectedMatiere.id)
-
-      if (updateError) {
-        console.error('Erreur modification:', updateError)
-        if (updateError.code === '23505') {
-          setError('Une matière avec ce nom existe déjà pour ce niveau')
-        } else {
-          setError(`Erreur: ${updateError.message}`)
-        }
-      } else {
+      if (result.success) {
         setShowEditModal(false)
         setSelectedMatiere(null)
         showMessage('✅ Matière modifiée avec succès', 'success')
         loadMatieres()
+      } else {
+        setError(result.error || 'Erreur lors de la modification')
       }
     } catch (err: any) {
       console.error('Exception:', err)
-      setError(`Erreur inattendue: ${err.message || 'Erreur lors de la modification'}`)
+      setError(`Erreur: ${err.message || 'Erreur inattendue'}`)
     } finally {
       setSubmitting(false)
     }
@@ -192,55 +162,31 @@ export default function AdminMatieresPage() {
     setShowDeleteModal(true)
   }
 
-  // ✅ Supprimer
+  // ✅ Supprimer une matière
   const handleDeleteMatiere = async () => {
     if (!selectedMatiere) return
     
     setDeleting(true)
     try {
-      // Vérifier d'abord si la table precepteur_matieres existe
-      const { error: checkError } = await supabase
-        .from('precepteur_matieres')
-        .select('id')
-        .eq('matiere_id', selectedMatiere.id)
-        .limit(1)
+      const result = await supprimerMatiere(selectedMatiere.id)
 
-      // Si la table existe, supprimer les associations
-      if (!checkError || checkError.code !== '42P01') {
-        const { error: assocError } = await supabase
-          .from('precepteur_matieres')
-          .delete()
-          .eq('matiere_id', selectedMatiere.id)
-        
-        if (assocError && assocError.code !== '42P01') {
-          console.error('Erreur suppression associations:', assocError)
-        }
-      }
-      
-      // Supprimer la matière
-      const { error: deleteError } = await supabase
-        .from('matieres')
-        .delete()
-        .eq('id', selectedMatiere.id)
-
-      if (deleteError) {
-        console.error('Erreur suppression:', deleteError)
-        showMessage(`❌ Erreur: ${deleteError.message}`, 'error')
-      } else {
+      if (result.success) {
         setShowDeleteModal(false)
         setSelectedMatiere(null)
         showMessage('✅ Matière supprimée avec succès', 'success')
         loadMatieres()
+      } else {
+        showMessage(`❌ ${result.error || 'Erreur lors de la suppression'}`, 'error')
       }
     } catch (err: any) {
       console.error('Exception:', err)
-      showMessage(`❌ Erreur inattendue: ${err.message}`, 'error')
+      showMessage(`❌ Erreur: ${err.message}`, 'error')
     } finally {
       setDeleting(false)
     }
   }
 
-  // Grouper les matières par niveau
+  // Grouper par niveau
   const matieresParNiveau = matieres.reduce((acc, matiere) => {
     if (!acc[matiere.niveau]) {
       acc[matiere.niveau] = []
@@ -251,7 +197,7 @@ export default function AdminMatieresPage() {
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-8">
-      {/* Message de notification */}
+      {/* Message notification */}
       {message && (
         <div className={`mb-4 p-3 rounded-lg text-sm flex items-center gap-2 ${
           message.type === 'error' 
@@ -282,7 +228,6 @@ export default function AdminMatieresPage() {
           <button 
             onClick={loadMatieres} 
             className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm hover:bg-gray-50 transition-colors flex items-center gap-2"
-            title="Actualiser la liste"
           >
             <RefreshCw className="w-4 h-4" /> Actualiser
           </button>
@@ -299,7 +244,7 @@ export default function AdminMatieresPage() {
         </div>
       </div>
 
-      {/* Barre de recherche */}
+      {/* Recherche */}
       <div className="bg-white rounded-2xl border border-gray-200 mb-6">
         <div className="p-4">
           <div className="relative">
@@ -315,7 +260,7 @@ export default function AdminMatieresPage() {
         </div>
       </div>
 
-      {/* Contenu principal */}
+      {/* Liste */}
       {loading ? (
         <div className="flex justify-center py-20">
           <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
@@ -353,10 +298,7 @@ export default function AdminMatieresPage() {
                 </div>
                 <div className="divide-y divide-gray-100">
                   {matieresList.map((matiere) => (
-                    <div 
-                      key={matiere.id} 
-                      className="p-4 hover:bg-gray-50/50 transition-colors group"
-                    >
+                    <div key={matiere.id} className="p-4 hover:bg-gray-50/50 transition-colors group">
                       <div className="flex items-center gap-4">
                         <div className="flex-shrink-0">
                           <div className="w-10 h-10 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl flex items-center justify-center">
@@ -364,17 +306,11 @@ export default function AdminMatieresPage() {
                           </div>
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="font-medium text-gray-900 truncate">
-                            {matiere.nom}
-                          </p>
+                          <p className="font-medium text-gray-900 truncate">{matiere.nom}</p>
                           {matiere.description ? (
-                            <p className="text-xs text-gray-500 mt-0.5 line-clamp-1">
-                              {matiere.description}
-                            </p>
+                            <p className="text-xs text-gray-500 mt-0.5 line-clamp-1">{matiere.description}</p>
                           ) : (
-                            <p className="text-xs text-gray-400 italic mt-0.5">
-                              Aucune description
-                            </p>
+                            <p className="text-xs text-gray-400 italic mt-0.5">Aucune description</p>
                           )}
                         </div>
                         <div className="text-right flex-shrink-0">
@@ -383,18 +319,10 @@ export default function AdminMatieresPage() {
                           </p>
                         </div>
                         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button 
-                            onClick={() => openEditModal(matiere)} 
-                            className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all" 
-                            title="Modifier"
-                          >
+                          <button onClick={() => openEditModal(matiere)} className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all" title="Modifier">
                             <Edit3 className="w-4 h-4" />
                           </button>
-                          <button 
-                            onClick={() => openDeleteModal(matiere)} 
-                            className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all" 
-                            title="Supprimer"
-                          >
+                          <button onClick={() => openDeleteModal(matiere)} className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all" title="Supprimer">
                             <Trash2 className="w-4 h-4" />
                           </button>
                         </div>
@@ -416,10 +344,7 @@ export default function AdminMatieresPage() {
               <h2 className="text-xl font-semibold flex items-center gap-2">
                 <Plus className="w-5 h-5" /> Nouvelle matière
               </h2>
-              <button 
-                onClick={() => setShowAddModal(false)} 
-                className="text-gray-400 hover:text-gray-600 transition-colors"
-              >
+              <button onClick={() => setShowAddModal(false)} className="text-gray-400 hover:text-gray-600">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -430,65 +355,27 @@ export default function AdminMatieresPage() {
                 </div>
               )}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Nom <span className="text-red-500">*</span>
-                </label>
-                <input 
-                  type="text" 
-                  value={newMatiere.nom} 
-                  onChange={(e) => setNewMatiere({ ...newMatiere, nom: e.target.value })} 
-                  required 
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" 
-                  placeholder="Ex: Mathématiques"
-                />
+                <label className="block text-sm font-medium text-gray-700 mb-1">Nom <span className="text-red-500">*</span></label>
+                <input type="text" value={newMatiere.nom} onChange={(e) => setNewMatiere({ ...newMatiere, nom: e.target.value })} required 
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Ex: Mathématiques" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Niveau <span className="text-red-500">*</span>
-                </label>
-                <select 
-                  value={newMatiere.niveau} 
-                  onChange={(e) => setNewMatiere({ ...newMatiere, niveau: e.target.value })} 
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                >
+                <label className="block text-sm font-medium text-gray-700 mb-1">Niveau <span className="text-red-500">*</span></label>
+                <select value={newMatiere.niveau} onChange={(e) => setNewMatiere({ ...newMatiere, niveau: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
                   <option value="7ème">7ème année</option>
                   <option value="8ème">8ème année</option>
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Description
-                </label>
-                <textarea 
-                  value={newMatiere.description} 
-                  onChange={(e) => setNewMatiere({ ...newMatiere, description: e.target.value })} 
-                  rows={3} 
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" 
-                  placeholder="Description optionnelle..."
-                />
+                <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                <textarea value={newMatiere.description} onChange={(e) => setNewMatiere({ ...newMatiere, description: e.target.value })} rows={3}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" placeholder="Description optionnelle..." />
               </div>
               <div className="flex gap-2 pt-2">
-                <button 
-                  type="button" 
-                  onClick={() => setShowAddModal(false)} 
-                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm"
-                >
-                  Annuler
-                </button>
-                <button 
-                  type="submit" 
-                  disabled={submitting || !newMatiere.nom.trim()} 
-                  className="flex-1 px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm flex items-center justify-center gap-2"
-                >
-                  {submitting ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" /> Ajout...
-                    </>
-                  ) : (
-                    <>
-                      <Plus className="w-4 h-4" /> Ajouter
-                    </>
-                  )}
+                <button type="button" onClick={() => setShowAddModal(false)} className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm">Annuler</button>
+                <button type="submit" disabled={submitting || !newMatiere.nom.trim()} className="flex-1 px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 disabled:opacity-50 transition-colors text-sm flex items-center justify-center gap-2">
+                  {submitting ? <><Loader2 className="w-4 h-4 animate-spin" /> Ajout...</> : <><Plus className="w-4 h-4" /> Ajouter</>}
                 </button>
               </div>
             </form>
@@ -501,15 +388,8 @@ export default function AdminMatieresPage() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
             <div className="p-6 border-b flex justify-between items-center">
-              <h2 className="text-xl font-semibold flex items-center gap-2">
-                <Edit3 className="w-5 h-5" /> Modifier la matière
-              </h2>
-              <button 
-                onClick={() => setShowEditModal(false)} 
-                className="text-gray-400 hover:text-gray-600 transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
+              <h2 className="text-xl font-semibold flex items-center gap-2"><Edit3 className="w-5 h-5" /> Modifier la matière</h2>
+              <button onClick={() => setShowEditModal(false)} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
             </div>
             <form onSubmit={handleEditMatiere} className="p-6 space-y-4">
               {error && (
@@ -518,63 +398,27 @@ export default function AdminMatieresPage() {
                 </div>
               )}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Nom <span className="text-red-500">*</span>
-                </label>
-                <input 
-                  type="text" 
-                  value={editMatiere.nom} 
-                  onChange={(e) => setEditMatiere({ ...editMatiere, nom: e.target.value })} 
-                  required 
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" 
-                />
+                <label className="block text-sm font-medium text-gray-700 mb-1">Nom <span className="text-red-500">*</span></label>
+                <input type="text" value={editMatiere.nom} onChange={(e) => setEditMatiere({ ...editMatiere, nom: e.target.value })} required 
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Niveau <span className="text-red-500">*</span>
-                </label>
-                <select 
-                  value={editMatiere.niveau} 
-                  onChange={(e) => setEditMatiere({ ...editMatiere, niveau: e.target.value })} 
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                >
+                <label className="block text-sm font-medium text-gray-700 mb-1">Niveau <span className="text-red-500">*</span></label>
+                <select value={editMatiere.niveau} onChange={(e) => setEditMatiere({ ...editMatiere, niveau: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
                   <option value="7ème">7ème année</option>
                   <option value="8ème">8ème année</option>
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Description
-                </label>
-                <textarea 
-                  value={editMatiere.description} 
-                  onChange={(e) => setEditMatiere({ ...editMatiere, description: e.target.value })} 
-                  rows={3} 
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" 
-                />
+                <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                <textarea value={editMatiere.description} onChange={(e) => setEditMatiere({ ...editMatiere, description: e.target.value })} rows={3}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
               </div>
               <div className="flex gap-2 pt-2">
-                <button 
-                  type="button" 
-                  onClick={() => setShowEditModal(false)} 
-                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm"
-                >
-                  Annuler
-                </button>
-                <button 
-                  type="submit" 
-                  disabled={submitting || !editMatiere.nom.trim()} 
-                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm flex items-center justify-center gap-2"
-                >
-                  {submitting ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" /> Modification...
-                    </>
-                  ) : (
-                    <>
-                      <Check className="w-4 h-4" /> Enregistrer
-                    </>
-                  )}
+                <button type="button" onClick={() => setShowEditModal(false)} className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm">Annuler</button>
+                <button type="submit" disabled={submitting || !editMatiere.nom.trim()} className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors text-sm flex items-center justify-center gap-2">
+                  {submitting ? <><Loader2 className="w-4 h-4 animate-spin" /> Modification...</> : <><Check className="w-4 h-4" /> Enregistrer</>}
                 </button>
               </div>
             </form>
@@ -594,30 +438,11 @@ export default function AdminMatieresPage() {
               <p className="text-sm text-gray-500 mb-2">
                 <span className="font-medium text-gray-700">"{selectedMatiere.nom}"</span> ({selectedMatiere.niveau})
               </p>
-              <p className="text-sm text-gray-500 mb-6">
-                Cette action est irréversible. Les associations avec les précepteurs seront également supprimées.
-              </p>
+              <p className="text-sm text-gray-500 mb-6">Cette action est irréversible.</p>
               <div className="flex gap-2">
-                <button 
-                  onClick={() => setShowDeleteModal(false)} 
-                  className="flex-1 px-4 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium"
-                >
-                  Annuler
-                </button>
-                <button 
-                  onClick={handleDeleteMatiere} 
-                  disabled={deleting} 
-                  className="flex-1 px-4 py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium flex items-center justify-center gap-2"
-                >
-                  {deleting ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" /> Suppression...
-                    </>
-                  ) : (
-                    <>
-                      <Trash2 className="w-4 h-4" /> Supprimer
-                    </>
-                  )}
+                <button onClick={() => setShowDeleteModal(false)} className="flex-1 px-4 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium">Annuler</button>
+                <button onClick={handleDeleteMatiere} disabled={deleting} className="flex-1 px-4 py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors text-sm font-medium flex items-center justify-center gap-2">
+                  {deleting ? <><Loader2 className="w-4 h-4 animate-spin" /> Suppression...</> : <><Trash2 className="w-4 h-4" /> Supprimer</>}
                 </button>
               </div>
             </div>

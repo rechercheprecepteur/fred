@@ -1,0 +1,38 @@
+[
+  {
+    "id": "1784063719732e7vt9zynk",
+    "created_at": "2026-07-14T21:15:19.732Z",
+    "updated_at": "2026-07-14T21:15:50.293Z",
+    "service_parent_id": "17840636657935odvifuaz",
+    "parent_id": "1783953892399m9ahmqnah",
+    "precepteur_id": "1783627329355tj198swuh",
+    "titre": "fraisd",
+    "matiere": "",
+    "niveau": "7ème",
+    "frequence": "unique",
+    "lieu": "domicile",
+    "date_debut": "2026-07-14",
+    "duree": "1_mois",
+    "tarif_final": 0,
+    "notes": "Contrat pour fraisd",
+    "statut": "termine"
+  },
+  {
+    "id": "1784126036527y8coff0oy",
+    "created_at": "2026-07-15T14:33:56.527Z",
+    "updated_at": "2026-07-15T14:34:28.999Z",
+    "service_parent_id": "1784125884225y9b9lyxdi",
+    "parent_id": "1784125779541llfhziwss",
+    "precepteur_id": "1783627329355tj198swuh",
+    "titre": "Cours de math",
+    "matiere": "",
+    "niveau": "7ème",
+    "frequence": "unique",
+    "lieu": "domicile",
+    "date_debut": "2026-07-15",
+    "duree": "1_mois",
+    "tarif_final": 300000,
+    "notes": "Contrat pour Cours de math",
+    "statut": "accepte"
+  }
+]

@@ -1,0 +1,132 @@
+[
+  {
+    "id": "1784057233669tffbhk0sn",
+    "created_at": "2026-07-14T19:27:13.669Z",
+    "updated_at": "2026-07-14T19:27:13.669Z",
+    "contract_id": "1784055648868mw5jpvz6h",
+    "sender": "parent",
+    "user_id": "1783953892396uitvlh4z9",
+    "message": "this is the first one",
+    "tarif_propose": 4000
+  },
+  {
+    "id": "1784063729516h98cll5yw",
+    "created_at": "2026-07-14T21:15:29.515Z",
+    "updated_at": "2026-07-14T21:15:29.516Z",
+    "contract_id": "1784063719732e7vt9zynk",
+    "sender": "parent",
+    "user_id": "1783953892396uitvlh4z9",
+    "message": "hey there ",
+    "tarif_propose": null
+  },
+  {
+    "id": "17840645781359dffrid18",
+    "created_at": "2026-07-14T21:29:38.135Z",
+    "updated_at": "2026-07-14T21:29:38.135Z",
+    "contract_id": "1784063719732e7vt9zynk",
+    "sender": "precepteur",
+    "user_id": "17836273293519y5dacyoa",
+    "message": "tu vas bien ??",
+    "tarif_propose": null
+  },
+  {
+    "id": "1784064589398kzhunfwrf",
+    "created_at": "2026-07-14T21:29:49.398Z",
+    "updated_at": "2026-07-14T21:29:49.398Z",
+    "contract_id": "1784063719732e7vt9zynk",
+    "sender": "precepteur",
+    "user_id": "17836273293519y5dacyoa",
+    "message": "je crois que c est good",
+    "tarif_propose": null
+  },
+  {
+    "id": "178406461698680h2min9z",
+    "created_at": "2026-07-14T21:30:16.986Z",
+    "updated_at": "2026-07-14T21:30:16.986Z",
+    "contract_id": "1784063719732e7vt9zynk",
+    "sender": "parent",
+    "user_id": "1783953892396uitvlh4z9",
+    "message": "man nope",
+    "tarif_propose": null
+  },
+  {
+    "id": "178406502527800ntoweus",
+    "created_at": "2026-07-14T21:37:05.278Z",
+    "updated_at": "2026-07-14T21:37:05.278Z",
+    "contract_id": "1784063719732e7vt9zynk",
+    "sender": "precepteur",
+    "user_id": "17836273293519y5dacyoa",
+    "message": "fall back",
+    "tarif_propose": null
+  },
+  {
+    "id": "178406503925366k3kj2vt",
+    "created_at": "2026-07-14T21:37:19.253Z",
+    "updated_at": "2026-07-14T21:37:19.253Z",
+    "contract_id": "1784063719732e7vt9zynk",
+    "sender": "precepteur",
+    "user_id": "17836273293519y5dacyoa",
+    "message": "fresh out there i do not give a shit",
+    "tarif_propose": null
+  },
+  {
+    "id": "178406507839825txczjec",
+    "created_at": "2026-07-14T21:37:58.398Z",
+    "updated_at": "2026-07-14T21:37:58.398Z",
+    "contract_id": "1784063719732e7vt9zynk",
+    "sender": "parent",
+    "user_id": "1783953892396uitvlh4z9",
+    "message": "IF U GOT IY",
+    "tarif_propose": null
+  },
+  {
+    "id": "1784065089117cdzgjpc7b",
+    "created_at": "2026-07-14T21:38:09.117Z",
+    "updated_at": "2026-07-14T21:38:09.117Z",
+    "contract_id": "1784063719732e7vt9zynk",
+    "sender": "precepteur",
+    "user_id": "17836273293519y5dacyoa",
+    "message": "MAN",
+    "tarif_propose": null
+  },
+  {
+    "id": "1784126139750kr7ax1jbh",
+    "created_at": "2026-07-15T14:35:39.749Z",
+    "updated_at": "2026-07-15T14:35:39.750Z",
+    "contract_id": "1784126036527y8coff0oy",
+    "sender": "parent",
+    "user_id": "1784125779535xrr80lmma",
+    "message": "bonjour je vois que vous aviez donner votre contre-proposition pour un montant de 300000 FC/h",
+    "tarif_propose": 300000
+  },
+  {
+    "id": "1784126169438t6qh9z0eg",
+    "created_at": "2026-07-15T14:36:09.437Z",
+    "updated_at": "2026-07-15T14:36:09.438Z",
+    "contract_id": "1784126036527y8coff0oy",
+    "sender": "precepteur",
+    "user_id": "17836273293519y5dacyoa",
+    "message": "exactement c est ca que j ai demander , mais tu peux discuter",
+    "tarif_propose": 300000
+  },
+  {
+    "id": "1784126196711czr7y7qrt",
+    "created_at": "2026-07-15T14:36:36.711Z",
+    "updated_at": "2026-07-15T14:36:36.711Z",
+    "contract_id": "1784126036527y8coff0oy",
+    "sender": "parent",
+    "user_id": "1784125779535xrr80lmma",
+    "message": "D'accord je vous propose 200000",
+    "tarif_propose": 200000
+  },
+  {
+    "id": "1784126229435wd4p0c8h6",
+    "created_at": "2026-07-15T14:37:09.434Z",
+    "updated_at": "2026-07-15T14:37:09.435Z",
+    "contract_id": "1784126036527y8coff0oy",
+    "sender": "precepteur",
+    "user_id": "17836273293519y5dacyoa",
+    "message": "Non , mpaka 300000",
+    "tarif_propose": 300000
+  }
+]

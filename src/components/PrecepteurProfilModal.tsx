@@ -1,37 +1,29 @@
-
-// app/components/PrecepteurProfilModal.tsx
-
 'use client'
+
 import AvisPrecepteurModal from '@/components/AvisPrecepteurModal'
 import { useState, useEffect } from 'react'
 import { getPrecepteurProfile, getPrecepteurStats } from '@/actions/recherche'
 import { 
-  X, 
-  MapPin, 
-  Star, 
-  Clock, 
-  BookOpen, 
-  GraduationCap, 
-  User, 
-  Calendar,
-  Check,
-  Award,
-  Users,
-  Phone,
-  Mail,
-  Building,
-  Shield,
-  MessageSquare,
-  ThumbsUp,
-  FileText
+  X, MapPin, Star, Clock, BookOpen, GraduationCap, User, Calendar,
+  Check, Award, Users, Phone, Mail, Building, Shield, MessageSquare,
+  ThumbsUp, FileText
 } from 'lucide-react'
 import { CheckBadgeIcon } from '@heroicons/react/24/solid'
 
+// ✅ ID en string maintenant (Express génère des IDs string)
 type PrecepteurProfilModalProps = {
-  precepteurId: number
+  precepteurId: string  // Changé de number à string
   isOpen: boolean
   onClose: () => void
   onDemanderSession: () => void
+}
+
+// Helper pour construire l'URL complète d'une photo
+const getPhotoUrl = (photoPath: string | null | undefined): string | null => {
+  if (!photoPath) return null
+  if (photoPath.startsWith('http')) return photoPath
+  const baseUrl = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:3001'
+  return `${baseUrl}${photoPath}`
 }
 
 export default function PrecepteurProfilModal({ 
@@ -51,40 +43,27 @@ export default function PrecepteurProfilModal({
     }
   }, [isOpen, precepteurId])
 
-  // const loadProfile = async () => {
-  //   setLoading(true)
-  //   try {
-  //     const [profileData, statsData] = await Promise.all([
-  //       getPrecepteurProfile(precepteurId),
-  //       getPrecepteurStats(precepteurId)
-  //     ])
-  //     setProfil(profileData)
-  //     setStats(statsData)
-  //   } catch (error) {
-  //     console.error('Erreur chargement profil:', error)
-  //   }
-  //   setLoading(false)
-  // }
-const loadProfile = async () => {
-  setLoading(true)
-  try {
-    console.log('🔍 Chargement du profil pour precepteurId:', precepteurId)
-    
-    const [profileData, statsData] = await Promise.all([
-      getPrecepteurProfile(precepteurId),
-      getPrecepteurStats(precepteurId)
-    ])
-    
-    console.log('✅ Profil chargé:', profileData)
-    console.log('✅ Stats chargées:', statsData)
-    
-    setProfil(profileData)
-    setStats(statsData)
-  } catch (error) {
-    console.error('❌ Erreur chargement profil:', error)
+  const loadProfile = async () => {
+    setLoading(true)
+    try {
+      console.log('🔍 Chargement du profil pour precepteurId:', precepteurId, 'Type:', typeof precepteurId)
+      
+      const [profileData, statsData] = await Promise.all([
+        getPrecepteurProfile(precepteurId),
+        getPrecepteurStats(precepteurId)
+      ])
+      
+      console.log('✅ Profil chargé:', profileData?.user?.username)
+      console.log('✅ Stats chargées:', statsData)
+      
+      setProfil(profileData)
+      setStats(statsData)
+    } catch (error) {
+      console.error('❌ Erreur chargement profil:', error)
+    }
+    setLoading(false)
   }
-  setLoading(false)
-}
+
   if (!isOpen) return null
 
   return (
@@ -123,17 +102,21 @@ const loadProfile = async () => {
                 <div className="flex items-start gap-4">
                   {/* Avatar */}
                   <div className="relative">
-                    {profil.user?.photo_profil ? (
+                    {getPhotoUrl(profil.user?.photo_profil) ? (
                       <img 
-                        src={profil.user.photo_profil} 
+                        src={getPhotoUrl(profil.user?.photo_profil)!} 
                         alt="" 
-                        className="w-16 h-16 rounded-2xl object-cover ring-2 ring-gray-100" 
+                        className="w-16 h-16 rounded-2xl object-cover ring-2 ring-gray-100"
+                        onError={(e) => {
+                          e.currentTarget.style.display = 'none'
+                          const placeholder = e.currentTarget.nextElementSibling as HTMLElement
+                          if (placeholder) placeholder.style.display = 'flex'
+                        }}
                       />
-                    ) : (
-                      <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center ring-2 ring-gray-100">
-                        <User className="w-7 h-7 text-white" />
-                      </div>
-                    )}
+                    ) : null}
+                    <div className={`w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center ring-2 ring-gray-100 ${profil.user?.photo_profil ? 'hidden' : 'flex'}`}>
+                      <User className="w-7 h-7 text-white" />
+                    </div>
                     {profil.disponible && (
                       <span className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 border-2 border-white rounded-full" />
                     )}
@@ -142,7 +125,7 @@ const loadProfile = async () => {
                   <div className="flex-1 min-w-0 pt-1">
                     <div className="flex items-center gap-2 flex-wrap">
                       <h2 className="text-xl font-bold text-gray-900 truncate">
-                        {profil.user?.username}
+                        {profil.user?.username || 'Anonyme'}
                       </h2>
                       {profil.statut_verification === 'verifie' && (
                         <CheckBadgeIcon className="w-5 h-5 text-blue-500 flex-shrink-0" />
@@ -181,7 +164,8 @@ const loadProfile = async () => {
                     {/* Localisation */}
                     <div className="flex items-center gap-1 mt-1 text-sm text-gray-500">
                       <MapPin className="w-3.5 h-3.5" />
-                      {profil.commune}{profil.quartier ? `, ${profil.quartier}` : ''}
+                      {profil.commune || 'Localisation non spécifiée'}
+                      {profil.quartier ? `, ${profil.quartier}` : ''}
                     </div>
                   </div>
                 </div>
@@ -214,7 +198,7 @@ const loadProfile = async () => {
                       <User className="w-4 h-4" /> Informations
                     </h3>
                     <div className="grid grid-cols-2 gap-2">
-                      <InfoCard icon={Clock} label="Expérience" value={`${profil.annees_experience} an(s)`} />
+                      <InfoCard icon={Clock} label="Expérience" value={`${profil.annees_experience || 0} an(s)`} />
                       <InfoCard icon={GraduationCap} label="Diplôme" value={profil.diplome || 'Non spécifié'} />
                       <InfoCard icon={Building} label="Établissement" value={profil.etablissement_origine || 'Non spécifié'} />
                       <InfoCard icon={Users} label="Genre" value={profil.user?.genre === 'M' ? 'Masculin' : 'Féminin'} />
@@ -234,9 +218,13 @@ const loadProfile = async () => {
                             className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-blue-50 text-blue-700 text-xs rounded-lg font-medium"
                           >
                             <BookOpen className="w-3 h-3" />
-                            {pm.matiere?.nom}
-                            <span className="text-blue-400">•</span>
-                            <span className="text-blue-500">{pm.matiere?.niveau}</span>
+                            {pm.matiere?.nom || 'Matière'}
+                            {pm.matiere?.niveau && (
+                              <>
+                                <span className="text-blue-400">•</span>
+                                <span className="text-blue-500">{pm.matiere.niveau}</span>
+                              </>
+                            )}
                           </span>
                         ))}
                       </div>
@@ -244,14 +232,13 @@ const loadProfile = async () => {
                   )}
 
                   {/* Contact */}
-                  {/* ← MODIFIER : Ajouter le téléphone du précepteur */}
-                  {(profil.user?.email || profil.telephone) && (
+                  {(profil.user?.email || profil.telephone || profil.user?.telephone) && (
                     <div>
                       <h3 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
                         <Mail className="w-4 h-4" /> Contact
                       </h3>
                       <div className="space-y-1.5">
-                        {/* ← AJOUTER : Téléphone du précepteur (prioritaire) */}
+                        {/* Téléphone du précepteur (prioritaire) */}
                         {profil.telephone && (
                           <div className="flex items-center gap-2 text-sm text-gray-600">
                             <Phone className="w-3.5 h-3.5 text-gray-400" />
@@ -304,7 +291,8 @@ const loadProfile = async () => {
                           <div key={eval_.id} className="p-3 bg-gray-50 rounded-lg">
                             <div className="flex items-center justify-between mb-1">
                               <span className="text-xs font-medium text-gray-700">
-                                {eval_.matiere?.nom} - {eval_.matiere?.niveau}
+                                {eval_.matiere?.nom || 'Matière'}
+                                {eval_.matiere?.niveau ? ` - ${eval_.matiere.niveau}` : ''}
                               </span>
                               <div className="flex items-center gap-1">
                                 <Star className="w-3.5 h-3.5 text-yellow-500 fill-current" />
@@ -366,6 +354,7 @@ const loadProfile = async () => {
         </div>
       </div>
       
+      {/* Modal des avis */}
       <AvisPrecepteurModal
         precepteurId={precepteurId}
         isOpen={showAvisModal}
@@ -375,6 +364,7 @@ const loadProfile = async () => {
   )
 }
 
+// Composant InfoCard
 function InfoCard({ icon: Icon, label, value }: { icon: any, label: string, value: string }) {
   return (
     <div className="p-2.5 bg-gray-50 rounded-lg">

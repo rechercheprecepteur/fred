@@ -1,0 +1,18 @@
+[
+  {
+    "id": "1783951988136spg0aizyf",
+    "created_at": "2026-07-13T14:13:08.136Z",
+    "updated_at": "2026-07-13T14:13:08.136Z",
+    "nom": "Math",
+    "niveau": "7ème",
+    "description": "this"
+  },
+  {
+    "id": "178395199952565vktq759",
+    "created_at": "2026-07-13T14:13:19.524Z",
+    "updated_at": "2026-07-13T14:13:19.525Z",
+    "nom": "Conjugaison",
+    "niveau": "8ème",
+    "description": "ebst"
+  }
+]

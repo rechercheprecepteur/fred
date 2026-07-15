@@ -1,10 +1,9 @@
-
 // app/admin/utilisateurs/page.tsx
 'use client'
 
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useAuth } from '@/context/AuthContext'
-import { getAllUsers, updateUserRole, deleteUser, adminVerifyUserEmail } from '@/actions/auth'
+import { getAllUsers, updateUserRole, deleteUser, adminVerifyUserEmail } from '@/actions/admin'
 import {
   User, Users, Search, Shield, Eye, Trash2, Check, X, AlertCircle,
   RefreshCw, Plus, Mail, Calendar, GraduationCap, UserCheck,
@@ -38,6 +37,20 @@ type UserWithDetails = {
 
 const ITEMS_PER_PAGE = 10
 
+// ✅ Helper pour construire l'URL de l'image
+const getImageUrl = (photoPath?: string | null): string => {
+  if (!photoPath) return ''
+  if (photoPath.startsWith('http://') || photoPath.startsWith('https://')) {
+    return photoPath
+  }
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
+  const BASE_URL = API_URL.replace('/api', '')
+  if (photoPath.startsWith('/uploads')) {
+    return `${BASE_URL}${photoPath}`
+  }
+  return `${BASE_URL}/uploads/profils/${photoPath}`
+}
+
 // ============ COMPOSANTS MODAUX ============
 
 function QuickRoleModal({ user, onClose, onConfirm }: {
@@ -63,21 +76,24 @@ function QuickRoleModal({ user, onClose, onConfirm }: {
           <p className="text-sm text-gray-500 mb-4">{user.username} • {user.email}</p>
           
           <div className="space-y-2 mb-6">
-            {roles.map(r => (
-              <button
-                key={r.value}
-                onClick={() => setRole(r.value)}
-                className={`w-full flex items-center gap-3 p-3 rounded-xl border-2 transition-all ${
-                  role === r.value 
-                    ? `border-${r.color}-500 bg-${r.color}-50` 
-                    : 'border-gray-200 hover:border-gray-300'
-                }`}
-              >
-                <r.icon className={`w-5 h-5 text-${r.color}-600`} />
-                <span className="font-medium text-sm">{r.label}</span>
-                {role === r.value && <Check className="w-4 h-4 ml-auto text-green-500" />}
-              </button>
-            ))}
+            {roles.map(r => {
+              const Icon = r.icon
+              return (
+                <button
+                  key={r.value}
+                  onClick={() => setRole(r.value)}
+                  className={`w-full flex items-center gap-3 p-3 rounded-xl border-2 transition-all ${
+                    role === r.value 
+                      ? `border-${r.color}-500 bg-${r.color}-50` 
+                      : 'border-gray-200 hover:border-gray-300'
+                  }`}
+                >
+                  <Icon className={`w-5 h-5 text-${r.color}-600`} />
+                  <span className="font-medium text-sm">{r.label}</span>
+                  {role === r.value && <Check className="w-4 h-4 ml-auto text-green-500" />}
+                </button>
+              )
+            })}
           </div>
 
           <div className="flex gap-2">
@@ -94,7 +110,11 @@ function QuickRoleModal({ user, onClose, onConfirm }: {
               disabled={saving || role === user.role}
               className="flex-1 px-4 py-2.5 bg-black text-white rounded-xl hover:bg-gray-800 disabled:opacity-50 transition-colors text-sm font-medium flex items-center justify-center gap-2"
             >
-              {saving ? <Loader /> : <Check className="w-4 h-4" />}
+              {saving ? (
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <Check className="w-4 h-4" />
+              )}
               Appliquer
             </button>
           </div>
@@ -111,15 +131,16 @@ function UserDetailModal({ user, onClose, onVerifyEmail, onRoleChange }: {
   onRoleChange: (id: string, role: string) => Promise<void>
 }) {
   const [showRoleModal, setShowRoleModal] = useState(false)
+  const [imgError, setImgError] = useState(false)
   
   const getRoleStyle = (role: string) => {
-    const styles = {
+    const styles: Record<string, string> = {
       admin: 'bg-purple-100 text-purple-700 border-purple-200',
       precepteur: 'bg-blue-100 text-blue-700 border-blue-200',
       parent: 'bg-green-100 text-green-700 border-green-200',
       responsable_pedagogique: 'bg-orange-100 text-orange-700 border-orange-200',
     }
-    return styles[role as keyof typeof styles] || 'bg-gray-100 text-gray-700 border-gray-200'
+    return styles[role] || 'bg-gray-100 text-gray-700 border-gray-200'
   }
 
   return (
@@ -128,8 +149,13 @@ function UserDetailModal({ user, onClose, onVerifyEmail, onRoleChange }: {
         <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[85vh] overflow-y-auto animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
           {/* Header */}
           <div className="sticky top-0 bg-white border-b p-6 flex items-center gap-4 z-10">
-            {user.photo_profil ? (
-              <img src={user.photo_profil} alt="" className="w-14 h-14 rounded-xl object-cover" />
+            {user.photo_profil && !imgError ? (
+              <img 
+                src={getImageUrl(user.photo_profil)} 
+                alt="" 
+                className="w-14 h-14 rounded-xl object-cover"
+                onError={() => setImgError(true)}
+              />
             ) : (
               <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center">
                 <User className="w-7 h-7 text-gray-400" />
@@ -273,7 +299,11 @@ function DeleteConfirmModal({ user, onClose, onConfirm }: {
               disabled={deleting}
               className="flex-1 px-4 py-2.5 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-colors text-sm font-medium flex items-center justify-center gap-2 disabled:opacity-50"
             >
-              {deleting ? <Loader /> : <Trash2 className="w-4 h-4" />}
+              {deleting ? (
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <Trash2 className="w-4 h-4" />
+              )}
               Supprimer
             </button>
           </div>
@@ -287,7 +317,6 @@ function DeleteConfirmModal({ user, onClose, onConfirm }: {
 function UsersTableSkeleton() {
   return (
     <div className="max-w-7xl mx-auto px-4 py-6">
-      {/* Header skeleton */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 animate-pulse">
         <div>
           <div className="h-8 bg-gray-200 rounded w-48 mb-2" />
@@ -298,8 +327,6 @@ function UsersTableSkeleton() {
           <div className="w-36 h-10 bg-gray-200 rounded-xl" />
         </div>
       </div>
-
-      {/* Stats skeleton */}
       <div className="grid grid-cols-3 sm:grid-cols-6 gap-3 mb-6">
         {[...Array(6)].map((_, i) => (
           <div key={i} className="bg-gray-50 rounded-xl p-3 animate-pulse">
@@ -308,16 +335,12 @@ function UsersTableSkeleton() {
           </div>
         ))}
       </div>
-
-      {/* Search bar skeleton */}
       <div className="bg-white rounded-2xl border border-gray-200 p-4 mb-4 animate-pulse">
         <div className="flex gap-3">
           <div className="flex-1 h-10 bg-gray-100 rounded-xl" />
           <div className="w-40 h-10 bg-gray-100 rounded-xl" />
         </div>
       </div>
-
-      {/* Table skeleton */}
       <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
         <div className="p-6 space-y-4">
           {[...Array(5)].map((_, i) => (
@@ -347,35 +370,25 @@ function UsersTableSkeleton() {
 export default function AdminUsersPage() {
   const { user: currentUser } = useAuth()
   
-  // États
   const [users, setUsers] = useState<UserWithDetails[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
+  const [imgErrors, setImgErrors] = useState<Record<string, boolean>>({})
   
-  // Recherche & filtres
   const [searchTerm, setSearchTerm] = useState('')
   const [filterRole, setFilterRole] = useState('tous')
-  
-  // Pagination
   const [currentPage, setCurrentPage] = useState(1)
   
-  // Modals
   const [selectedUser, setSelectedUser] = useState<UserWithDetails | null>(null)
   const [modalType, setModalType] = useState<'detail' | 'role' | 'delete' | null>(null)
 
-  // ✅ Chargement initial avec logs de performance
   const loadUsers = useCallback(async () => {
-    const startTime = performance.now()
-    console.log('🔄 [AdminUsers] Début chargement...')
-    
     setLoading(true)
     setError('')
     
     try {
       const result = await getAllUsers()
-      const elapsed = performance.now() - startTime
-      console.log(`✅ [AdminUsers] Chargement terminé en ${elapsed.toFixed(0)}ms`)
       
       if (result.success && result.users) {
         setUsers(result.users as UserWithDetails[])
@@ -395,21 +408,17 @@ export default function AdminUsersPage() {
     loadUsers()
   }, [loadUsers])
 
-  // ✅ Toast auto-disparition optimisé
   useEffect(() => {
     if (!message) return
     const timer = setTimeout(() => setMessage(''), 3000)
     return () => clearTimeout(timer)
   }, [message])
 
-  // Filtrage + tri mémoïsé
   const filteredUsers = useMemo(() => {
     let result = [...users]
-
     if (filterRole !== 'tous') {
       result = result.filter(u => u.role === filterRole)
     }
-
     if (searchTerm.trim()) {
       const term = searchTerm.toLowerCase()
       result = result.filter(u =>
@@ -417,25 +426,20 @@ export default function AdminUsersPage() {
         u.email.toLowerCase().includes(term)
       )
     }
-
     result.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-
     return result
   }, [users, searchTerm, filterRole])
 
-  // Pagination
   const totalPages = Math.ceil(filteredUsers.length / ITEMS_PER_PAGE)
   const paginatedUsers = useMemo(() => {
     const start = (currentPage - 1) * ITEMS_PER_PAGE
     return filteredUsers.slice(start, start + ITEMS_PER_PAGE)
   }, [filteredUsers, currentPage])
 
-  // Reset pagination quand les filtres changent
   useEffect(() => {
     setCurrentPage(1)
   }, [searchTerm, filterRole])
 
-  // Stats rapides mémoïsées
   const stats = useMemo(() => ({
     total: users.length,
     parents: users.filter(u => u.role === 'parent').length,
@@ -445,19 +449,18 @@ export default function AdminUsersPage() {
     nonVerifies: users.filter(u => !u.email_verified).length,
   }), [users])
 
-  // ✅ Actions optimisées avec mise à jour locale
   const handleRoleChange = useCallback(async (userId: string, newRole: string) => {
-    // Optimistic update
     setUsers(prev => prev.map(u => u.id === userId ? { ...u, role: newRole } : u))
     
     const result = await updateUserRole(userId, newRole)
     if (result.success) {
       setMessage('✅ Rôle mis à jour')
     } else {
-      // Rollback
       setUsers(prev => prev.map(u => u.id === userId ? { ...u, role: u.role } : u))
       setMessage('❌ ' + (result.error || 'Erreur'))
     }
+    setModalType(null)
+    setSelectedUser(null)
   }, [])
 
   const handleVerifyEmail = useCallback(async (userId: string) => {
@@ -481,35 +484,19 @@ export default function AdminUsersPage() {
     if (result.success) {
       setMessage('✅ Utilisateur supprimé')
     } else {
-      await loadUsers() // Recharger en cas d'erreur
+      await loadUsers()
       setMessage('❌ ' + (result.error || 'Erreur'))
     }
   }, [loadUsers])
 
-  // Helpers visuels
-  const getRoleBadge = (role: string) => {
-    const config: Record<string, { bg: string; text: string; border: string; icon: any }> = {
-      admin: { bg: 'bg-purple-50', text: 'text-purple-700', border: 'border-purple-200', icon: Shield },
-      precepteur: { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200', icon: GraduationCap },
-      parent: { bg: 'bg-green-50', text: 'text-green-700', border: 'border-green-200', icon: Users },
-      responsable_pedagogique: { bg: 'bg-orange-50', text: 'text-orange-700', border: 'border-orange-200', icon: UserCheck },
-    }
-    const c = config[role] || { bg: 'bg-gray-50', text: 'text-gray-700', border: 'border-gray-200', icon: User }
-    const Icon = c.icon
-    return (
-      <span className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium border rounded-full ${c.bg} ${c.text} ${c.border}`}>
-        <Icon className="w-3 h-3" />
-        {role === 'responsable_pedagogique' ? 'Resp. Pédago.' : role}
-      </span>
-    )
+  const handleImageError = (userId: string) => {
+    setImgErrors(prev => ({ ...prev, [userId]: true }))
   }
 
-  // ============ LOADING STATE ============
   if (loading) {
     return <UsersTableSkeleton />
   }
 
-  // ============ ERROR STATE ============
   if (error) {
     return (
       <div className="max-w-7xl mx-auto px-4 py-6">
@@ -528,10 +515,8 @@ export default function AdminUsersPage() {
     )
   }
 
-  // ============ RENDU PRINCIPAL ============
   return (
     <div className="max-w-7xl mx-auto px-4 py-6">
-      {/* Toast notification */}
       {message && (
         <div className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-xl shadow-lg text-sm font-medium animate-in slide-in-from-top-2 duration-300 ${
           message.includes('✅') ? 'bg-green-50 text-green-800 border border-green-200' : 'bg-red-50 text-red-800 border border-red-200'
@@ -540,7 +525,6 @@ export default function AdminUsersPage() {
         </div>
       )}
 
-      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
@@ -560,7 +544,6 @@ export default function AdminUsersPage() {
         </div>
       </div>
 
-      {/* Stats rapides */}
       <div className="grid grid-cols-3 sm:grid-cols-6 gap-3 mb-6">
         {[
           { label: 'Total', value: stats.total, color: 'bg-gray-50', icon: Users },
@@ -577,7 +560,6 @@ export default function AdminUsersPage() {
         ))}
       </div>
 
-      {/* Barre de recherche & filtres */}
       <div className="bg-white rounded-2xl border border-gray-200 p-4 mb-4">
         <div className="flex flex-col sm:flex-row gap-3">
           <div className="flex-1 relative">
@@ -604,7 +586,6 @@ export default function AdminUsersPage() {
         </div>
       </div>
 
-      {/* Liste des utilisateurs */}
       <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
         {paginatedUsers.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16">
@@ -626,132 +607,121 @@ export default function AdminUsersPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
-                  {paginatedUsers.map(user => (
-                    <tr key={user.id} className="hover:bg-gray-50/50 transition-colors">
-                      <td className="py-3 px-4">
-                        <div className="flex items-center gap-3">
-                          {user.photo_profil ? (
-                            <img src={user.photo_profil} alt="" className="w-9 h-9 rounded-full object-cover" />
-                          ) : (
-                            <div className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center">
-                              <User className="w-4 h-4 text-gray-400" />
+                  {paginatedUsers.map(user => {
+                    const roleConfig: Record<string, { bg: string; text: string; border: string; icon: any }> = {
+                      admin: { bg: 'bg-purple-50', text: 'text-purple-700', border: 'border-purple-200', icon: Shield },
+                      precepteur: { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200', icon: GraduationCap },
+                      parent: { bg: 'bg-green-50', text: 'text-green-700', border: 'border-green-200', icon: Users },
+                      responsable_pedagogique: { bg: 'bg-orange-50', text: 'text-orange-700', border: 'border-orange-200', icon: UserCheck },
+                    }
+                    const c = roleConfig[user.role] || { bg: 'bg-gray-50', text: 'text-gray-700', border: 'border-gray-200', icon: User }
+                    const RoleIcon = c.icon
+                    
+                    return (
+                      <tr key={user.id} className="hover:bg-gray-50/50 transition-colors">
+                        <td className="py-3 px-4">
+                          <div className="flex items-center gap-3">
+                            {user.photo_profil && !imgErrors[user.id] ? (
+                              <img 
+                                src={getImageUrl(user.photo_profil)} 
+                                alt="" 
+                                className="w-9 h-9 rounded-full object-cover"
+                                onError={() => handleImageError(user.id)}
+                              />
+                            ) : (
+                              <div className="w-9 h-9 rounded-full bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center">
+                                <User className="w-4 h-4 text-gray-400" />
+                              </div>
+                            )}
+                            <div>
+                              <p className="font-medium text-sm text-gray-900">{user.username}</p>
+                              <p className="text-xs text-gray-500 md:hidden">{user.email}</p>
                             </div>
-                          )}
-                          <div>
-                            <p className="font-medium text-sm text-gray-900">{user.username}</p>
-                            <p className="text-xs text-gray-500 md:hidden">{user.email}</p>
                           </div>
-                        </div>
-                      </td>
-                      <td className="py-3 px-4 hidden md:table-cell">
-                        <p className="text-sm text-gray-600">{user.email}</p>
-                      </td>
-                      <td className="py-3 px-4">
-                        {getRoleBadge(user.role)}
-                      </td>
-                      <td className="py-3 px-4 hidden sm:table-cell">
-                        {user.email_verified ? (
-                          <span className="inline-flex items-center gap-1 text-xs text-green-600">
-                            <Check className="w-3 h-3" /> Vérifié
+                        </td>
+                        <td className="py-3 px-4 hidden md:table-cell">
+                          <p className="text-sm text-gray-600">{user.email}</p>
+                        </td>
+                        <td className="py-3 px-4">
+                          <span className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium border rounded-full ${c.bg} ${c.text} ${c.border}`}>
+                            <RoleIcon className="w-3 h-3" />
+                            {user.role === 'responsable_pedagogique' ? 'Resp. Pédago.' : user.role}
                           </span>
-                        ) : (
-                          <button
-                            onClick={() => handleVerifyEmail(user.id)}
-                            className="inline-flex items-center gap-1 text-xs text-red-600 hover:text-green-600 transition-colors"
-                          >
-                            <X className="w-3 h-3" /> Valider
-                          </button>
-                        )}
-                      </td>
-                      <td className="py-3 px-4">
-                        <div className="flex items-center justify-end gap-1">
-                          <button
-                            onClick={() => { setSelectedUser(user); setModalType('detail') }}
-                            className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
-                            title="Détails"
-                          >
-                            <Eye className="w-4 h-4" />
-                          </button>
-                          
-                          <button
-                            onClick={() => { setSelectedUser(user); setModalType('role') }}
-                            className="p-2 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-all"
-                            title="Changer le rôle"
-                          >
-                            <Edit3 className="w-4 h-4" />
-                          </button>
-
-                          {currentUser?.id !== user.id && (
+                        </td>
+                        <td className="py-3 px-4 hidden sm:table-cell">
+                          {user.email_verified ? (
+                            <span className="inline-flex items-center gap-1 text-xs text-green-600">
+                              <Check className="w-3 h-3" /> Vérifié
+                            </span>
+                          ) : (
                             <button
-                              onClick={() => { setSelectedUser(user); setModalType('delete') }}
-                              className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
-                              title="Supprimer"
+                              onClick={() => handleVerifyEmail(user.id)}
+                              className="inline-flex items-center gap-1 text-xs text-red-600 hover:text-green-600 transition-colors"
                             >
-                              <Trash2 className="w-4 h-4" />
+                              <X className="w-3 h-3" /> Valider
                             </button>
                           )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                        </td>
+                        <td className="py-3 px-4">
+                          <div className="flex items-center justify-end gap-1">
+                            <button
+                              onClick={() => { setSelectedUser(user); setModalType('detail') }}
+                              className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
+                              title="Détails"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => { setSelectedUser(user); setModalType('role') }}
+                              className="p-2 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-all"
+                              title="Changer le rôle"
+                            >
+                              <Edit3 className="w-4 h-4" />
+                            </button>
+                            {currentUser?.id !== user.id && (
+                              <button
+                                onClick={() => { setSelectedUser(user); setModalType('delete') }}
+                                className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                                title="Supprimer"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>
 
-            {/* Pagination */}
             {totalPages > 1 && (
               <div className="border-t border-gray-100 px-4 py-3 flex items-center justify-between">
                 <p className="text-sm text-gray-500">
                   Page {currentPage} sur {totalPages} • {filteredUsers.length} résultat{filteredUsers.length > 1 ? 's' : ''}
                 </p>
                 <div className="flex items-center gap-1">
-                  <button
-                    onClick={() => setCurrentPage(1)}
-                    disabled={currentPage === 1}
-                    className="p-2 rounded-lg hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                  >
+                  <button onClick={() => setCurrentPage(1)} disabled={currentPage === 1} className="p-2 rounded-lg hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed">
                     <ChevronsLeft className="w-4 h-4" />
                   </button>
-                  <button
-                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                    disabled={currentPage === 1}
-                    className="p-2 rounded-lg hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                  >
+                  <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="p-2 rounded-lg hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed">
                     <ChevronLeft className="w-4 h-4" />
                   </button>
-                  
                   {Array.from({ length: totalPages }, (_, i) => i + 1)
                     .filter(p => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1)
                     .map((p, i, arr) => (
                       <div key={p} className="flex items-center">
-                        {i > 0 && arr[i - 1] !== p - 1 && (
-                          <span className="px-1 text-gray-400">...</span>
-                        )}
-                        <button
-                          onClick={() => setCurrentPage(p)}
-                          className={`w-9 h-9 rounded-lg text-sm font-medium transition-colors ${
-                            currentPage === p
-                              ? 'bg-black text-white'
-                              : 'hover:bg-gray-100 text-gray-700'
-                          }`}
-                        >
+                        {i > 0 && arr[i - 1] !== p - 1 && <span className="px-1 text-gray-400">...</span>}
+                        <button onClick={() => setCurrentPage(p)} className={`w-9 h-9 rounded-lg text-sm font-medium transition-colors ${currentPage === p ? 'bg-black text-white' : 'hover:bg-gray-100 text-gray-700'}`}>
                           {p}
                         </button>
                       </div>
                     ))}
-
-                  <button
-                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                    disabled={currentPage === totalPages}
-                    className="p-2 rounded-lg hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                  >
+                  <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="p-2 rounded-lg hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed">
                     <ChevronRight className="w-4 h-4" />
                   </button>
-                  <button
-                    onClick={() => setCurrentPage(totalPages)}
-                    disabled={currentPage === totalPages}
-                    className="p-2 rounded-lg hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                  >
+                  <button onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages} className="p-2 rounded-lg hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed">
                     <ChevronsRight className="w-4 h-4" />
                   </button>
                 </div>
@@ -761,8 +731,6 @@ export default function AdminUsersPage() {
         )}
       </div>
 
-      {/* ============ MODALS ============ */}
-      
       {modalType === 'detail' && selectedUser && (
         <UserDetailModal
           user={selectedUser}

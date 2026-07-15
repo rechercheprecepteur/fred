@@ -1,0 +1,35 @@
+[
+  {
+    "id": "1784055598362pirqos84i",
+    "created_at": "2026-07-14T18:59:58.362Z",
+    "updated_at": "2026-07-14T19:23:17.030Z",
+    "service_parent_id": "17840555780591dq507kl2",
+    "precepteur_id": "1783627329355tj198swuh",
+    "message": "Bonjour, je suis intéressé par votre demande de cours de soutien scolaire pour le niveau 7ème.",
+    "tarif_propose": null,
+    "disponibilites": null,
+    "statut": "accepte"
+  },
+  {
+    "id": "1784063686615lyiarvc8f",
+    "created_at": "2026-07-14T21:14:46.615Z",
+    "updated_at": "2026-07-14T21:15:19.747Z",
+    "service_parent_id": "17840636657935odvifuaz",
+    "precepteur_id": "1783627329355tj198swuh",
+    "message": "Bonjour, je suis intéressé par votre demande de cours de soutien scolaire pour le niveau 7ème. this is now and then right",
+    "tarif_propose": null,
+    "disponibilites": null,
+    "statut": "accepte"
+  },
+  {
+    "id": "1784125981008ymz01vgby",
+    "created_at": "2026-07-15T14:33:01.008Z",
+    "updated_at": "2026-07-15T14:33:56.543Z",
+    "service_parent_id": "1784125884225y9b9lyxdi",
+    "precepteur_id": "1783627329355tj198swuh",
+    "message": "Bonjour, je suis intéressé par votre demande de cours de soutien scolaire pour le niveau 7ème. pour votre enfant ",
+    "tarif_propose": 300000,
+    "disponibilites": null,
+    "statut": "accepte"
+  }
+]

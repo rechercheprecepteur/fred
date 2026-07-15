@@ -1,0 +1,14 @@
+[
+  {
+    "id": "1783630359939shritjh53",
+    "created_at": "2026-07-09T20:52:39.939Z",
+    "updated_at": "2026-07-09T20:52:39.941Z",
+    "email": "admin@excellence.com",
+    "password": "$2b$10$VMTo28X/xqTd1pvHKxxIseU03TCWEeRIqcS5SR5yhIAgl8fivdpye",
+    "username": "Admin",
+    "role": "admin",
+    "genre": "homme",
+    "email_verified": true,
+    "photo_profil": null
+  }
+]

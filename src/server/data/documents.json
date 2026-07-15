@@ -1,0 +1,32 @@
+[
+  {
+    "id": "1783952430707b88oygq7q",
+    "created_at": "2026-07-13T14:20:30.707Z",
+    "updated_at": "2026-07-13T14:20:30.707Z",
+    "precepteur_id": "1783627329355tj198swuh",
+    "user_id": "17836273293519y5dacyoa",
+    "titre": "mvso",
+    "type_document": "cv",
+    "fichier_url": "http://localhost:3001/uploads/documents/17836273293519y5dacyoa/doc-1783952430701-119543417.pdf",
+    "fichier_path": "/uploads/documents/17836273293519y5dacyoa/doc-1783952430701-119543417.pdf",
+    "format_fichier": "application/pdf",
+    "taille_fichier": 10831,
+    "statut_verification": "en_attente",
+    "commentaire_verification": null
+  },
+  {
+    "id": "17839524569649gzbp3nyc",
+    "created_at": "2026-07-13T14:20:56.962Z",
+    "updated_at": "2026-07-13T14:20:56.964Z",
+    "precepteur_id": "1783627329355tj198swuh",
+    "user_id": "17836273293519y5dacyoa",
+    "titre": "Ma carte ",
+    "type_document": "carte_identite",
+    "fichier_url": "http://localhost:3001/uploads/documents/17836273293519y5dacyoa/doc-1783952456954-139555828.png",
+    "fichier_path": "/uploads/documents/17836273293519y5dacyoa/doc-1783952456954-139555828.png",
+    "format_fichier": "image/png",
+    "taille_fichier": 3928,
+    "statut_verification": "en_attente",
+    "commentaire_verification": null
+  }
+]

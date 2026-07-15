@@ -1,0 +1,17 @@
+[
+  {
+    "id": "17839534225761s4yt9sba",
+    "created_at": "2026-07-13T14:37:02.575Z",
+    "updated_at": "2026-07-13T14:37:26.903Z",
+    "precepteur_id": "1783627329355tj198swuh",
+    "titre": "htis brorfrt",
+    "description": "je suis un bon man this is the real one",
+    "type_service": "cours_particulier",
+    "modalite": "presentiel",
+    "tarif_horaire": 9000,
+    "tarif_forfaitaire": 5000,
+    "duree_minutes": 60,
+    "nombre_eleves_max": 1,
+    "est_actif": true
+  }
+]

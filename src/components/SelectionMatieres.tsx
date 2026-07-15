@@ -76,12 +76,19 @@ export default function SelectionMatieres({ selectedIds, onMatieresChange }: Sel
     return () => clearTimeout(timer)
   }, [searchTerm, allMatieres])
 
-  const loadAllMatieres = async () => {
-    const { matieres: data } = await getMatieres('')
-    if (data) {
-      setAllMatieres(data)
-    }
+ const loadAllMatieres = async () => {
+  console.log('🔄 SelectionMatieres - Chargement...')
+  const result = await getMatieres('')
+  console.log('📦 Résultat:', result)
+  
+  if (result.matieres && result.matieres.length > 0) {
+    console.log(`✅ ${result.matieres.length} matières chargées dans le sélecteur`)
+    setAllMatieres(result.matieres)
+  } else {
+    console.warn('⚠️ Aucune matière chargée dans le sélecteur')
+    setAllMatieres([])
   }
+}
 
   const toggleMatiere = (id: number) => {
     const newIds = safeSelectedIds.includes(id)

@@ -1,0 +1,54 @@
+[
+  {
+    "id": "17838835595921kr3arsh3",
+    "created_at": "2026-07-12T19:12:39.592Z",
+    "updated_at": "2026-07-12T19:12:39.592Z",
+    "parent_id": "17838835595824rxs9iy4m",
+    "nom": "luba",
+    "postnom": null,
+    "prenom": "maie",
+    "genre": "F",
+    "date_naissance": "2000-12-12",
+    "niveau": "7ème",
+    "ecole": null
+  },
+  {
+    "id": "1783953825804mqbng3swy",
+    "created_at": "2026-07-13T14:43:45.804Z",
+    "updated_at": "2026-07-13T14:43:45.804Z",
+    "parent_id": "1783953825802w21reo390",
+    "nom": "kj",
+    "postnom": "k",
+    "prenom": "k",
+    "genre": "M",
+    "date_naissance": null,
+    "niveau": "7ème",
+    "ecole": null
+  },
+  {
+    "id": "1783956537735uohv4e9b5",
+    "created_at": "2026-07-13T15:28:57.735Z",
+    "updated_at": "2026-07-13T15:28:57.735Z",
+    "parent_id": "1783953892399m9ahmqnah",
+    "nom": "tymy",
+    "postnom": "Berry",
+    "prenom": "Grady",
+    "genre": "M",
+    "date_naissance": null,
+    "niveau": "7ème",
+    "ecole": "College together"
+  },
+  {
+    "id": "1784125814000rt6b939vh",
+    "created_at": "2026-07-15T14:30:14.000Z",
+    "updated_at": "2026-07-15T14:30:14.000Z",
+    "parent_id": "1784125779541llfhziwss",
+    "nom": "kyungu",
+    "postnom": null,
+    "prenom": "pierre",
+    "genre": "M",
+    "date_naissance": null,
+    "niveau": "7ème",
+    "ecole": "college alina"
+  }
+]

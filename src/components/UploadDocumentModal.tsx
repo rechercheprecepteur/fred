@@ -1,4 +1,6 @@
-// app/components/UploadDocumentModal.tsx
+
+
+// components/UploadDocumentModal.tsx
 'use client'
 
 import { useState, useRef } from 'react'
@@ -15,7 +17,6 @@ export default function UploadDocumentModal({ isOpen, onClose, onSuccess }: Prop
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
-  const [dragOver, setDragOver] = useState(false)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const formRef = useRef<HTMLFormElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -23,6 +24,27 @@ export default function UploadDocumentModal({ isOpen, onClose, onSuccess }: Prop
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) {
+      // Validation taille (10MB)
+      if (file.size > 10 * 1024 * 1024) {
+        setError('Le fichier est trop volumineux. Maximum : 10MB')
+        return
+      }
+      
+      // Validation type
+      const allowedTypes = [
+        'application/pdf',
+        'image/jpeg',
+        'image/png',
+        'image/jpg',
+        'application/msword',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+      ]
+      
+      if (!allowedTypes.includes(file.type)) {
+        setError('Type de fichier non accepté. Utilisez PDF, JPG, PNG, DOC ou DOCX')
+        return
+      }
+      
       setSelectedFile(file)
       setError('')
     }
@@ -38,12 +60,8 @@ export default function UploadDocumentModal({ isOpen, onClose, onSuccess }: Prop
       const formData = new FormData(e.currentTarget as HTMLFormElement)
       const result = await uploadDocument(formData)
 
-      if (!result) {
-        setError('Aucune réponse du serveur')
-      } else if (result.error) {
-        setError(result.error)
-      } else {
-        setSuccess('Document ajouté avec succès !')
+      if (result.success) {
+        setSuccess('✅ Document ajouté avec succès !')
         formRef.current?.reset()
         setSelectedFile(null)
         onSuccess()
@@ -51,9 +69,12 @@ export default function UploadDocumentModal({ isOpen, onClose, onSuccess }: Prop
           setSuccess('')
           onClose()
         }, 1500)
+      } else {
+        setError(result.error || 'Erreur lors de l\'upload')
       }
     } catch (err) {
-      setError('Une erreur est survenue')
+      console.error('❌ Erreur upload:', err)
+      setError('Une erreur est survenue lors de l\'upload')
     } finally {
       setLoading(false)
     }
@@ -70,6 +91,7 @@ export default function UploadDocumentModal({ isOpen, onClose, onSuccess }: Prop
     if (!file) return ''
     if (file.type.includes('pdf')) return 'PDF'
     if (file.type.includes('image')) return 'Image'
+    if (file.type.includes('word')) return 'Document Word'
     return file.type.split('/')[1]?.toUpperCase() || 'Fichier'
   }
 
@@ -127,7 +149,9 @@ export default function UploadDocumentModal({ isOpen, onClose, onSuccess }: Prop
 
           {/* Titre */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">Titre du document</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">
+              Titre du document <span className="text-red-500">*</span>
+            </label>
             <input 
               type="text" 
               name="titre" 
@@ -139,7 +163,9 @@ export default function UploadDocumentModal({ isOpen, onClose, onSuccess }: Prop
 
           {/* Type de document */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">Type de document</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">
+              Type de document <span className="text-red-500">*</span>
+            </label>
             <select 
               name="type_document" 
               required 
@@ -156,29 +182,16 @@ export default function UploadDocumentModal({ isOpen, onClose, onSuccess }: Prop
 
           {/* Upload de fichier */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">Fichier</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">
+              Fichier <span className="text-red-500">*</span>
+            </label>
             
             <div 
               className={`relative border-2 border-dashed rounded-xl p-8 transition-all cursor-pointer ${
-                dragOver 
-                  ? 'border-black bg-gray-50' 
-                  : selectedFile 
-                    ? 'border-green-300 bg-green-50/30' 
-                    : 'border-gray-300 hover:border-gray-400'
+                selectedFile 
+                  ? 'border-green-300 bg-green-50/30' 
+                  : 'border-gray-300 hover:border-gray-400'
               }`}
-              onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
-              onDragLeave={() => setDragOver(false)}
-              onDrop={(e) => {
-                e.preventDefault()
-                setDragOver(false)
-                const file = e.dataTransfer.files?.[0]
-                if (file && fileInputRef.current) {
-                  const dataTransfer = new DataTransfer()
-                  dataTransfer.items.add(file)
-                  fileInputRef.current.files = dataTransfer.files
-                  setSelectedFile(file)
-                }
-              }}
               onClick={() => fileInputRef.current?.click()}
             >
               {selectedFile ? (
@@ -205,9 +218,9 @@ export default function UploadDocumentModal({ isOpen, onClose, onSuccess }: Prop
               ) : (
                 <div className="text-center">
                   <PiUploadSimple className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-                  <p className="text-sm font-medium text-gray-700">Glissez-déposez votre fichier ici</p>
-                  <p className="text-xs text-gray-500 mt-1">ou cliquez pour parcourir</p>
-                  <p className="text-xs text-gray-400 mt-3">PDF, JPG, PNG • Max 10 Mo</p>
+                  <p className="text-sm font-medium text-gray-700">Cliquez pour sélectionner un fichier</p>
+                  <p className="text-xs text-gray-500 mt-1">ou glissez-déposez ici</p>
+                  <p className="text-xs text-gray-400 mt-3">PDF, JPG, PNG, DOC, DOCX • Max 10 Mo</p>
                 </div>
               )}
             </div>
@@ -218,7 +231,7 @@ export default function UploadDocumentModal({ isOpen, onClose, onSuccess }: Prop
               name="fichier" 
               required 
               className="hidden" 
-              accept=".pdf,.jpg,.jpeg,.png"
+              accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
               onChange={handleFileChange}
             />
           </div>
@@ -240,12 +253,12 @@ export default function UploadDocumentModal({ isOpen, onClose, onSuccess }: Prop
               {loading ? (
                 <>
                   <PiSpinner className="w-5 h-5 animate-spin" />
-                  Upload...
+                  Upload en cours...
                 </>
               ) : (
                 <>
                   <PiUploadSimple className="w-5 h-5" />
-                  Ajouter
+                  Ajouter le document
                 </>
               )}
             </button>
