@@ -2,11 +2,11 @@
   {
     "id": "1783627329355tj198swuh",
     "created_at": "2026-07-09T20:02:09.355Z",
-    "updated_at": "2026-07-13T14:13:59.780Z",
+    "updated_at": "2026-07-16T20:47:49.539Z",
     "user_id": "17836273293519y5dacyoa",
-    "statut_verification": "en_attente",
+    "statut_verification": "verifie",
     "disponible": true,
-    "note_moyenne": 0,
+    "note_moyenne": 4,
     "precepteur_matieres": [
       {
         "matiere_id": "1783951988136spg0aizyf",
@@ -27,7 +27,8 @@
     "annees_experience": 0,
     "diplome": "Licence en Math",
     "etablissement_origine": null,
-    "telephone": null
+    "telephone": null,
+    "commentaire_verification": null
   },
   {
     "id": "1783627513757na6sigr1v",

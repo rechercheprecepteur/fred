@@ -1,7 +1,6 @@
 
 // 'use client'
-// import { sendEmail } from '@/lib/email'
-// import { getNewContractRequestEmail } from '@/lib/emailTemplates'
+
 // import { useState, useEffect, useCallback, useRef } from 'react'
 // import { useAuth } from '@/context/AuthContext'
 // import { rechercherPrecepteurs, getMatieres, getCommunes, getQuartiers } from '@/actions/recherche'
@@ -10,30 +9,18 @@
 // import DemandeContractModal from '@/components/DemandeContractModal'
 // import Loader from '@/components/Loader'
 // import { 
-//   Search, 
-//   MapPin, 
-//   Star, 
-//   Clock, 
-//   BookOpen, 
-//   GraduationCap, 
-//   RotateCcw,
-//   User,
-//   ChevronLeft,
-//   ChevronRight,
-//   X,
-//   Check,
-//   FileText,
-//   ArrowLeft,
-//   SlidersHorizontal,
-//   XCircle
+//   Search, MapPin, Star, Clock, BookOpen, GraduationCap, 
+//   RotateCcw, User, ChevronLeft, ChevronRight, X, Check,
+//   FileText, ArrowLeft, SlidersHorizontal, XCircle
 // } from 'lucide-react'
 // import { CheckBadgeIcon } from '@heroicons/react/24/solid'
 
+// // Types (les IDs sont maintenant des strings venant d'Express)
 // type Precepteur = {
-//   id: number
+//   id: string
 //   user_id: string
-//   commune: string
-//   quartier: string
+//   commune: string | null
+//   quartier: string | null
 //   annees_experience: number
 //   note_moyenne: number
 //   disponible: boolean
@@ -41,20 +28,22 @@
 //   etablissement_origine: string | null
 //   statut_verification: string
 //   user: {
+//     id: string
 //     username: string
+//     email: string
 //     genre: string
 //     photo_profil: string | null
-//   }
+//   } | null
 //   matieres: {
-//     matiere_id: number
+//     matiere_id: string
 //     matiere: {
-//       id: number
+//       id: string
 //       nom: string
 //       niveau: string
-//     }
+//     } | null
 //   }[]
-//   stats?: {
-//     id: number
+//   stats: {
+//     id: string
 //     statut: string
 //   }[]
 // }
@@ -67,6 +56,14 @@
 //   noteMin: string
 //   disponible: boolean
 //   tri: 'note' | 'experience' | 'proximite'
+// }
+
+// // Helper pour construire l'URL complète d'une photo
+// const getPhotoUrl = (photoPath: string | null | undefined): string | null => {
+//   if (!photoPath) return null
+//   if (photoPath.startsWith('http')) return photoPath
+//   const baseUrl = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:3001'
+//   return `${baseUrl}${photoPath}`
 // }
 
 // export default function RecherchePrecepteur() {
@@ -109,11 +106,11 @@
 //     tri: 'note'
 //   })
 
+//   // Chargement initial
 //   useEffect(() => {
 //     loadMatieres()
 //     loadCommunes()
 //     loadQuartiers()
-//     rechercher()
     
 //     // Fermer les suggestions au clic extérieur
 //     const handleClickOutside = (e: MouseEvent) => {
@@ -145,53 +142,43 @@
 //     const data = await getQuartiers()
 //     setQuartiers(data || [])
 //   }
-// const rechercher = useCallback(async (pageNum?: number) => {
-//     setLoading(true)
-//     const currentPage = pageNum || page
-    
-//     const result = await rechercherPrecepteurs({
-//       matiere: filtres.matiere || undefined,
-//       commune: filtres.commune || undefined,
-//       quartier: filtres.quartier || undefined,
-//       experienceMin: filtres.experienceMin ? parseInt(filtres.experienceMin) : undefined,
-//       noteMin: filtres.noteMin ? parseFloat(filtres.noteMin) : undefined,
-//       disponible: filtres.disponible,
-//       tri: filtres.tri,
-//       page: currentPage
-//     })
 
-//     if (result.precepteurs) {
-//       // ✅ CORRECTION ICI : p.user est déjà un objet, pas un tableau
-//       const precepteursFormatted: Precepteur[] = result.precepteurs.map((p: any) => ({
-//         id: p.id,
-//         user_id: p.user_id,
-//         commune: p.commune,
-//         quartier: p.quartier,
-//         latitude: p.latitude,
-//         longitude: p.longitude,
-//         annees_experience: p.annees_experience,
-//         note_moyenne: p.note_moyenne,
-//         disponible: p.disponible,
-//         diplome: p.diplome,
-//         etablissement_origine: p.etablissement_origine,
-//         statut_verification: p.statut_verification,
-//         user: p.user || null,  // ✅ p.user est un objet {id, username, ...} pas un tableau
-//         matieres: p.matieres || [],
-//         stats: p.stats || []
-//       }))
-      
-//       console.log('📋 Données formatées:', precepteursFormatted[0]) // Pour debug
-      
-//       setPrecepteurs(precepteursFormatted)
-//       setTotal(result.total || 0)
-//       setTotalPages(result.totalPages || 1)
-//       setPage(currentPage)
+//   // Recherche
+//   const rechercher = useCallback(async (pageNum?: number) => {
+//     setLoading(true)
+//     const currentPage = pageNum || 1
+    
+//     try {
+//       const result = await rechercherPrecepteurs({
+//         matiere: filtres.matiere || undefined,
+//         commune: filtres.commune || undefined,
+//         quartier: filtres.quartier || undefined,
+//         experienceMin: filtres.experienceMin ? parseInt(filtres.experienceMin) : undefined,
+//         noteMin: filtres.noteMin ? parseFloat(filtres.noteMin) : undefined,
+//         disponible: filtres.disponible,
+//         tri: filtres.tri,
+//         page: currentPage
+//       })
+
+//       if (result.precepteurs) {
+//         // Les données viennent déjà formatées correctement depuis Express
+//         setPrecepteurs(result.precepteurs as Precepteur[])
+//         setTotal(result.total || 0)
+//         setTotalPages(result.totalPages || 1)
+//         setPage(result.page || 1)
+//       }
+//     } catch (error) {
+//       console.error('❌ Erreur recherche:', error)
+//       setPrecepteurs([])
+//       setTotal(0)
+//       setTotalPages(1)
 //     }
 
 //     setLoading(false)
 //     setShowFilters(false)
-//   }, [filtres, page])
+//   }, [filtres])
 
+//   // Relancer la recherche quand les filtres changent
 //   useEffect(() => {
 //     rechercher(1)
 //   }, [filtres])
@@ -218,7 +205,7 @@
 //   // Filtrer les suggestions d'autocomplétion
 //   const filteredMatieres = matieres.filter(m => 
 //     m.nom.toLowerCase().includes(matiereInput.toLowerCase()) ||
-//     m.niveau.toLowerCase().includes(matiereInput.toLowerCase())
+//     (m.niveau && m.niveau.toLowerCase().includes(matiereInput.toLowerCase()))
 //   )
 //   const filteredCommunes = communes.filter(c => 
 //     c.toLowerCase().includes(communeInput.toLowerCase())
@@ -226,12 +213,6 @@
 //   const filteredQuartiers = quartiers.filter(q => 
 //     q.toLowerCase().includes(quartierInput.toLowerCase())
 //   )
-
-//   const getContratActifInfo = (precepteur: Precepteur) => {
-//     if (!precepteur.stats) return null
-//     const contratsActifs = precepteur.stats.filter(c => c.statut === 'actif')
-//     return { actifs: contratsActifs.length }
-//   }
 
 //   if (!user) return null
 
@@ -256,7 +237,6 @@
 
 //       {/* FILTRES */}
 //       <div className="bg-white rounded-xl border border-gray-200 p-4 mb-6">
-//         {/* Barre de filtres principaux */}
 //         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
 //           {/* Matière avec autocomplétion */}
 //           <div className="relative" ref={matiereRef}>
@@ -283,13 +263,13 @@
 //                     type="button"
 //                     onClick={() => {
 //                       handleFiltreChange('matiere', matiere.nom)
-//                       setMatiereInput(`${matiere.nom} - ${matiere.niveau}`)
+//                       setMatiereInput(`${matiere.nom} - ${matiere.niveau || ''}`)
 //                       setShowMatiereSuggestions(false)
 //                     }}
 //                     className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center justify-between"
 //                   >
 //                     <span>{matiere.nom}</span>
-//                     <span className="text-xs text-gray-400">{matiere.niveau}</span>
+//                     {matiere.niveau && <span className="text-xs text-gray-400">{matiere.niveau}</span>}
 //                   </button>
 //                 ))}
 //               </div>
@@ -414,7 +394,7 @@
 //               </select>
 //             </div>
 
-//             {/* Note minimum AVEC ÉTOILES SÉLECTIONNABLES */}
+//             {/* Note minimum avec étoiles sélectionnables */}
 //             <div>
 //               <label className="block text-xs font-medium text-gray-600 mb-1">
 //                 <Star className="w-3.5 h-3.5 inline mr-1" /> Note minimum
@@ -425,7 +405,6 @@
 //                     key={etoile}
 //                     type="button"
 //                     onClick={() => {
-//                       // Si on clique sur la même étoile, on désélectionne
 //                       if (filtres.noteMin === etoile.toString()) {
 //                         handleFiltreChange('noteMin', '')
 //                       } else {
@@ -580,7 +559,7 @@
 //         </div>
 //       ) : (
 //         <>
-//           {/* LISTE SIMPLE */}
+//           {/* LISTE DES PRÉCEPTEURS */}
 //           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
 //             <div className="divide-y divide-gray-100">
 //               {precepteurs.map((precepteur) => (
@@ -591,17 +570,21 @@
 //                   <div className="flex items-center gap-4">
 //                     {/* Avatar */}
 //                     <div className="relative flex-shrink-0">
-//                       {precepteur.user?.photo_profil ? (
+//                       {getPhotoUrl(precepteur.user?.photo_profil) ? (
 //                         <img 
-//                           src={precepteur.user.photo_profil} 
+//                           src={getPhotoUrl(precepteur.user?.photo_profil)!} 
 //                           alt="" 
-//                           className="w-12 h-12 rounded-full object-cover" 
+//                           className="w-12 h-12 rounded-full object-cover"
+//                           onError={(e) => {
+//                             e.currentTarget.style.display = 'none'
+//                             const placeholder = e.currentTarget.nextElementSibling as HTMLElement
+//                             if (placeholder) placeholder.style.display = 'flex'
+//                           }}
 //                         />
-//                       ) : (
-//                         <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center">
-//                           <User className="w-6 h-6 text-gray-400" />
-//                         </div>
-//                       )}
+//                       ) : null}
+//                       <div className={`w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center ${precepteur.user?.photo_profil ? 'hidden' : 'flex'}`}>
+//                         <User className="w-6 h-6 text-gray-400" />
+//                       </div>
 //                       {precepteur.disponible && (
 //                         <span className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-green-500 border-2 border-white rounded-full" />
 //                       )}
@@ -614,7 +597,7 @@
 //                           {precepteur.user?.username || 'Anonyme'}
 //                         </span>
 //                         {precepteur.statut_verification === 'verifie' && (
-//                         <CheckBadgeIcon className="w-5 h-5 text-blue-500 flex-shrink-0" />
+//                           <CheckBadgeIcon className="w-5 h-5 text-blue-500 flex-shrink-0" />
 //                         )}
 //                       </div>
 
@@ -646,7 +629,7 @@
 //                               className="text-[10px] px-2 py-0.5 bg-blue-50 text-blue-600 rounded-full font-medium"
 //                             >
 //                               <BookOpen className="w-3 h-3 inline mr-0.5" />
-//                               {m.matiere.nom}
+//                               {m.matiere?.nom || 'Matière'}
 //                             </span>
 //                           ))}
 //                           {precepteur.matieres.length > 4 && (
@@ -688,17 +671,7 @@
 //                       >
 //                         Profil
 //                       </button>
-//                       <button
-//                         onClick={() => {
-//                           setSelectedPrecepteur(precepteur)
-//                           setShowContractModal(true)
-//                         }}
-//                         disabled={!precepteur.disponible}
-//                         className="px-3 py-1.5 text-sm bg-black text-white rounded-lg hover:bg-gray-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center gap-1.5"
-//                       >
-//                         <FileText className="w-3.5 h-3.5" />
-//                         Contrat
-//                       </button>
+                      
 //                     </div>
 //                   </div>
 //                 </div>
@@ -751,7 +724,7 @@
 
 //       {/* Modals */}
 //       <PrecepteurProfilModal
-//         precepteurId={selectedPrecepteur?.id || 0}
+//         precepteurId={selectedPrecepteur?.id || '0'}
 //         isOpen={showProfilModal}
 //         onClose={() => setShowProfilModal(false)}
 //         onDemanderSession={() => {
@@ -768,6 +741,7 @@
 //     </div>
 //   )
 // }
+
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
@@ -775,12 +749,11 @@ import { useAuth } from '@/context/AuthContext'
 import { rechercherPrecepteurs, getMatieres, getCommunes, getQuartiers } from '@/actions/recherche'
 import Link from 'next/link'
 import PrecepteurProfilModal from '@/components/PrecepteurProfilModal'
-import DemandeContractModal from '@/components/DemandeContractModal'
 import Loader from '@/components/Loader'
 import { 
   Search, MapPin, Star, Clock, BookOpen, GraduationCap, 
   RotateCcw, User, ChevronLeft, ChevronRight, X, Check,
-  FileText, ArrowLeft, SlidersHorizontal, XCircle
+  ArrowLeft, SlidersHorizontal, XCircle
 } from 'lucide-react'
 import { CheckBadgeIcon } from '@heroicons/react/24/solid'
 
@@ -862,7 +835,6 @@ export default function RecherchePrecepteur() {
 
   // Modals
   const [showProfilModal, setShowProfilModal] = useState(false)
-  const [showContractModal, setShowContractModal] = useState(false)
   const [selectedPrecepteur, setSelectedPrecepteur] = useState<Precepteur | null>(null)
 
   const [filtres, setFiltres] = useState<Filtres>({
@@ -1440,17 +1412,6 @@ export default function RecherchePrecepteur() {
                       >
                         Profil
                       </button>
-                      <button
-                        onClick={() => {
-                          setSelectedPrecepteur(precepteur)
-                          setShowContractModal(true)
-                        }}
-                        disabled={!precepteur.disponible}
-                        className="px-3 py-1.5 text-sm bg-black text-white rounded-lg hover:bg-gray-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center gap-1.5"
-                      >
-                        <FileText className="w-3.5 h-3.5" />
-                        Contrat
-                      </button>
                     </div>
                   </div>
                 </div>
@@ -1501,21 +1462,11 @@ export default function RecherchePrecepteur() {
         </>
       )}
 
-      {/* Modals */}
+      {/* Modal Profil uniquement */}
       <PrecepteurProfilModal
         precepteurId={selectedPrecepteur?.id || '0'}
         isOpen={showProfilModal}
         onClose={() => setShowProfilModal(false)}
-        onDemanderSession={() => {
-          setShowProfilModal(false)
-          setTimeout(() => setShowContractModal(true), 100)
-        }}
-      />
-
-      <DemandeContractModal
-        precepteur={selectedPrecepteur}
-        isOpen={showContractModal}
-        onClose={() => setShowContractModal(false)}
       />
     </div>
   )

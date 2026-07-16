@@ -31,5 +31,38 @@
     "tarif_propose": 300000,
     "disponibilites": null,
     "statut": "accepte"
+  },
+  {
+    "id": "1784176850665pgm9qv0tr",
+    "created_at": "2026-07-16T04:40:50.665Z",
+    "updated_at": "2026-07-16T04:41:25.125Z",
+    "service_parent_id": "1784176826546qqso13asz",
+    "precepteur_id": "1783627329355tj198swuh",
+    "message": "Bonjour, je suis intéressé par votre demande de cours de soutien scolaire pour le niveau 7ème.",
+    "tarif_propose": null,
+    "disponibilites": null,
+    "statut": "accepte"
+  },
+  {
+    "id": "1784176851655z0lxs5lci",
+    "created_at": "2026-07-16T04:40:51.654Z",
+    "updated_at": "2026-07-16T04:40:51.655Z",
+    "service_parent_id": "1784176826546qqso13asz",
+    "precepteur_id": "1783627329355tj198swuh",
+    "message": "Bonjour, je suis intéressé par votre demande de cours de soutien scolaire pour le niveau 7ème.",
+    "tarif_propose": null,
+    "disponibilites": null,
+    "statut": "en_attente"
+  },
+  {
+    "id": "1784209606075ed7er16h2",
+    "created_at": "2026-07-16T13:46:46.074Z",
+    "updated_at": "2026-07-16T13:48:41.751Z",
+    "service_parent_id": "1784209525289tzky17ew8",
+    "precepteur_id": "1783627329355tj198swuh",
+    "message": "Bonjour, je suis intéressé par votre demande de cours de Français pour le niveau 7ème.",
+    "tarif_propose": 70000,
+    "disponibilites": null,
+    "statut": "accepte"
   }
 ]

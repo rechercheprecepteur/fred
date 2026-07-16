@@ -1,0 +1,13 @@
+[
+  {
+    "id": "1784230957919r0mig9b0q",
+    "created_at": "2026-07-16T19:42:37.918Z",
+    "updated_at": "2026-07-16T20:28:31.964Z",
+    "service_precepteur_id": "17839534225761s4yt9sba",
+    "parent_id": "1783953892399m9ahmqnah",
+    "eleve_id": "1783956537735uohv4e9b5",
+    "message": "Bonjour, je suis intéressé par votre service \"htis brorfrt\".",
+    "tarif_propose": 9000,
+    "statut": "accepte"
+  }
+]

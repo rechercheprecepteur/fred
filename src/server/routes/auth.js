@@ -570,42 +570,103 @@ router.put('/precepteur/contrats/:id/status', authenticateToken, async (req, res
   }
 });
 
-// 🟢 CRÉER UNE SESSION
+// 🟢 CRÉER UNE SESSION - VERSION CORRIGÉE
 router.post('/precepteur/sessions', authenticateToken, async (req, res) => {
   try {
-    const { contract_id, date_session, heure_debut, heure_fin, type_session, lieu, lien_visio, notes } = req.body;
+    if (req.user.role !== 'precepteur') {
+      return res.status(403).json({ success: false, error: 'Accès non autorisé' });
+    }
 
-    const sessionsDB = new (require('../utils/database').JSONDatabase)('sessions.json');
-    await sessionsDB.init();
+    const { 
+      contract_id,  // ✅ Peut être string ou number
+      date_session, 
+      heure_debut, 
+      heure_fin, 
+      lieu, 
+      notes_precepteur 
+    } = req.body;
+
+    console.log('📝 Création session:', { contract_id, date_session, heure_debut, heure_fin, lieu });
+
+    // ✅ Validation : vérifier que contract_id existe (string ou number)
+    if (!contract_id || String(contract_id).trim() === '') {
+      return res.status(400).json({ success: false, error: 'contract_id est requis' });
+    }
+    if (!date_session) {
+      return res.status(400).json({ success: false, error: 'date_session est requis' });
+    }
+    if (!heure_debut) {
+      return res.status(400).json({ success: false, error: 'heure_debut est requis' });
+    }
+    if (!heure_fin) {
+      return res.status(400).json({ success: false, error: 'heure_fin est requis' });
+    }
+    if (!lieu || lieu.trim() === '') {
+      return res.status(400).json({ success: false, error: 'lieu est requis' });
+    }
+
+    // Vérifier que le contrat appartient au précepteur
+    const precepteur = await precepteursDB.findOne({ user_id: req.user.id });
+    if (!precepteur) {
+      return res.status(404).json({ success: false, error: 'Précepteur non trouvé' });
+    }
+
+    const contratsDB = new (require('../utils/database').JSONDatabase)('contracts.json');
+    await contratsDB.init();
+    
+    // ✅ Chercher le contrat par ID string
+    const contrat = await contratsDB.findById(String(contract_id));
+    
+    console.log('🔍 Contrat recherché:', String(contract_id), 'Trouvé:', !!contrat);
+    
+    if (!contrat) {
+      return res.status(404).json({ success: false, error: 'Contrat non trouvé' });
+    }
+
+    // ✅ Vérifier que le contrat appartient bien au précepteur (comparaison string)
+    if (String(contrat.precepteur_id) !== String(precepteur.id)) {
+      return res.status(403).json({ success: false, error: 'Ce contrat ne vous appartient pas' });
+    }
 
     // Calculer la durée
-    const [hDeb, mDeb] = heure_debut.split(':');
-    const [hFin, mFin] = heure_fin.split(':');
-    const dureeMinutes = (parseInt(hFin) * 60 + parseInt(mFin)) - (parseInt(hDeb) * 60 + parseInt(mDeb));
+    const [hDeb, mDeb] = heure_debut.split(':').map(Number);
+    const [hFin, mFin] = heure_fin.split(':').map(Number);
+    const dureeMinutes = (hFin * 60 + mFin) - (hDeb * 60 + mDeb);
 
+    if (dureeMinutes < 30) {
+      return res.status(400).json({ success: false, error: 'La durée minimale est de 30 minutes' });
+    }
+
+    const sessionsDB = await getSessionsDB();
+    
+    // ✅ Stocker le contract_id en string
     const session = await sessionsDB.create({
-      contract_id,
+      contract_id: String(contract_id),
       date_session,
       heure_debut,
       heure_fin,
       duree_minutes: dureeMinutes,
       statut: 'planifie',
-      type_session: type_session || 'presentiel',
-      lieu: lieu || null,
-      lien_visio: lien_visio || null,
-      notes_precepteur: notes || null,
+      type_session: 'presentiel',
+      lieu: lieu.trim(),
+      lien_visio: null,
+      notes_precepteur: notes_precepteur || null,
       notes_parent: null,
       feedback_precepteur: null,
       feedback_parent: null,
       note_session: null,
       raison_annulation: null,
-      annule_par: null
+      annule_par: null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
     });
 
+    console.log(`✅ Session créée: ${session.id} pour contrat ${contract_id}`);
+    
     res.status(201).json({ success: true, session });
   } catch (error) {
     console.error('❌ Erreur création session:', error);
-    res.status(500).json({ success: false, error: 'Erreur lors de la création de la session' });
+    res.status(500).json({ success: false, error: 'Erreur serveur' });
   }
 });
 
@@ -1156,6 +1217,7 @@ router.get('/admin/precepteurs/verification', authenticateToken, async (req, res
 })
 
 // 🟢 ADMIN - Mettre à jour le statut de vérification
+// 🟢 ADMIN - Mettre à jour le statut de vérification
 router.put('/admin/precepteurs/:id/verification', authenticateToken, async (req, res) => {
   try {
     if (req.user.role !== 'admin') {
@@ -1168,17 +1230,43 @@ router.put('/admin/precepteurs/:id/verification', authenticateToken, async (req,
       return res.status(400).json({ success: false, error: 'Statut invalide' })
     }
 
-    await precepteursDB.update(parseInt(req.params.id), {
+    // ✅ CORRECTION : Ne pas utiliser parseInt, garder l'ID en string
+    const precepteurId = req.params.id;
+    
+    console.log(`🔍 Mise à jour précepteur ${precepteurId} -> ${statut}`);
+    
+    // Vérifier que le précepteur existe
+    const allPrecepteurs = await precepteursDB.findAll();
+    const precepteur = allPrecepteurs.find(p => String(p.id) === String(precepteurId));
+    
+    if (!precepteur) {
+      console.log(`❌ Précepteur ${precepteurId} non trouvé`);
+      return res.status(404).json({ success: false, error: 'Précepteur non trouvé' });
+    }
+    
+    console.log(`  - Avant: ${precepteur.statut_verification}`);
+    
+    // Mettre à jour
+    const updatedPrecepteur = await precepteursDB.update(precepteurId, {
       statut_verification: statut,
+      commentaire_verification: commentaire || null,
       updated_at: new Date().toISOString()
-    })
+    });
+    
+    console.log(`  - Après: ${updatedPrecepteur.statut_verification}`);
+    console.log(`✅ Mise à jour réussie`);
 
-    res.json({ success: true })
+    res.json({ 
+      success: true, 
+      message: `Statut mis à jour : ${statut}`,
+      precepteur: updatedPrecepteur
+    });
+    
   } catch (error) {
-    console.error('❌ Erreur:', error)
-    res.status(500).json({ success: false, error: 'Erreur serveur' })
+    console.error('❌ Erreur:', error);
+    res.status(500).json({ success: false, error: 'Erreur serveur' });
   }
-})
+});
 
 // routes/auth.js - Ajouter ces routes MATIÈRES
 
@@ -2430,83 +2518,83 @@ router.get('/precepteur/sessions', authenticateToken, async (req, res) => {
 });
 
 // 🟢 CRÉER UNE SESSION
-router.post('/precepteur/sessions', authenticateToken, async (req, res) => {
-  try {
-    if (req.user.role !== 'precepteur') {
-      return res.status(403).json({ success: false, error: 'Accès non autorisé' });
-    }
+// router.post('/precepteur/sessions', authenticateToken, async (req, res) => {
+//   try {
+//     if (req.user.role !== 'precepteur') {
+//       return res.status(403).json({ success: false, error: 'Accès non autorisé' });
+//     }
 
-    const { 
-      contract_id, 
-      date_session, 
-      heure_debut, 
-      heure_fin, 
-      lieu, 
-      notes_precepteur 
-    } = req.body;
+//     const { 
+//       contract_id, 
+//       date_session, 
+//       heure_debut, 
+//       heure_fin, 
+//       lieu, 
+//       notes_precepteur 
+//     } = req.body;
 
-    if (!contract_id || !date_session || !heure_debut || !heure_fin || !lieu) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Tous les champs sont requis' 
-      });
-    }
+//     if (!contract_id || !date_session || !heure_debut || !heure_fin || !lieu) {
+//       return res.status(400).json({ 
+//         success: false, 
+//         error: 'Tous les champs sont requis' 
+//       });
+//     }
 
-    // Vérifier que le contrat appartient au précepteur
-    const precepteur = await precepteursDB.findOne({ user_id: req.user.id });
-    if (!precepteur) {
-      return res.status(404).json({ success: false, error: 'Précepteur non trouvé' });
-    }
+//     // Vérifier que le contrat appartient au précepteur
+//     const precepteur = await precepteursDB.findOne({ user_id: req.user.id });
+//     if (!precepteur) {
+//       return res.status(404).json({ success: false, error: 'Précepteur non trouvé' });
+//     }
 
-    const contratsDB = new (require('../utils/database').JSONDatabase)('contracts.json');
-    await contratsDB.init();
-    const contrat = await contratsDB.findById(contract_id);
+//     const contratsDB = new (require('../utils/database').JSONDatabase)('contracts.json');
+//     await contratsDB.init();
+//     const contrat = await contratsDB.findById(contract_id);
     
-    if (!contrat || contrat.precepteur_id !== precepteur.id) {
-      return res.status(403).json({ success: false, error: 'Contrat non autorisé' });
-    }
+//     if (!contrat || contrat.precepteur_id !== precepteur.id) {
+//       return res.status(403).json({ success: false, error: 'Contrat non autorisé' });
+//     }
 
-    // Calculer la durée
-    const [hDeb, mDeb] = heure_debut.split(':').map(Number);
-    const [hFin, mFin] = heure_fin.split(':').map(Number);
-    const dureeMinutes = (hFin * 60 + mFin) - (hDeb * 60 + mDeb);
+//     // Calculer la durée
+//     const [hDeb, mDeb] = heure_debut.split(':').map(Number);
+//     const [hFin, mFin] = heure_fin.split(':').map(Number);
+//     const dureeMinutes = (hFin * 60 + mFin) - (hDeb * 60 + mDeb);
 
-    if (dureeMinutes < 30) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'La durée minimale est de 30 minutes' 
-      });
-    }
+//     if (dureeMinutes < 30) {
+//       return res.status(400).json({ 
+//         success: false, 
+//         error: 'La durée minimale est de 30 minutes' 
+//       });
+//     }
 
-    const sessionsDB = await getSessionsDB();
-    const session = await sessionsDB.create({
-      contract_id: parseInt(contract_id),
-      date_session,
-      heure_debut,
-      heure_fin,
-      duree_minutes: dureeMinutes,
-      statut: 'planifie',
-      type_session: 'presentiel',
-      lieu,
-      lien_visio: null,
-      notes_precepteur: notes_precepteur || null,
-      notes_parent: null,
-      feedback_precepteur: null,
-      feedback_parent: null,
-      note_session: null,
-      raison_annulation: null,
-      annule_par: null,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    });
+//     const sessionsDB = await getSessionsDB();
+//     const session = await sessionsDB.create({
+//       contract_id: parseInt(contract_id),
+//       date_session,
+//       heure_debut,
+//       heure_fin,
+//       duree_minutes: dureeMinutes,
+//       statut: 'planifie',
+//       type_session: 'presentiel',
+//       lieu,
+//       lien_visio: null,
+//       notes_precepteur: notes_precepteur || null,
+//       notes_parent: null,
+//       feedback_precepteur: null,
+//       feedback_parent: null,
+//       note_session: null,
+//       raison_annulation: null,
+//       annule_par: null,
+//       created_at: new Date().toISOString(),
+//       updated_at: new Date().toISOString()
+//     });
 
-    console.log(`✅ Session créée pour contrat ${contract_id}`);
-    res.status(201).json({ success: true, session });
-  } catch (error) {
-    console.error('❌ Erreur création session:', error);
-    res.status(500).json({ success: false, error: 'Erreur serveur' });
-  }
-});
+//     console.log(`✅ Session créée pour contrat ${contract_id}`);
+//     res.status(201).json({ success: true, session });
+//   } catch (error) {
+//     console.error('❌ Erreur création session:', error);
+//     res.status(500).json({ success: false, error: 'Erreur serveur' });
+//   }
+// });
 
 // 🟢 RÉCUPÉRER LES SESSIONS D'UN CONTRAT SPÉCIFIQUE
 router.get('/precepteur/contrats/:id/sessions', authenticateToken, async (req, res) => {
@@ -2614,46 +2702,24 @@ router.put('/precepteur/sessions/:id/notes', authenticateToken, async (req, res)
 });
 
 // 🟢 UPLOADER UN FICHIER POUR UNE SESSION
+// ============ ROUTES FICHIERS DE SESSION (CORRIGÉES - IDs en string) ============
+
+// 🟢 UPLOADER UN FICHIER POUR UNE SESSION
 router.post('/precepteur/sessions/:id/files', authenticateToken, documentUpload.single('fichier'), async (req, res) => {
   try {
-    if (req.user.role !== 'precepteur') {
-      return res.status(403).json({ success: false, error: 'Accès non autorisé' });
-    }
-
-    const sessionId = parseInt(req.params.id);
-    const { titre } = req.body;
+    const sessionId = req.params.id; // ✅ Garder en string, pas parseInt
 
     if (!req.file) {
       return res.status(400).json({ success: false, error: 'Aucun fichier fourni' });
     }
 
-    if (!titre) {
-      await fs.promises.unlink(req.file.path).catch(() => {});
-      return res.status(400).json({ success: false, error: 'Titre requis' });
-    }
-
-    // Vérifier que la session existe et appartient au précepteur
+    // Vérifier que la session existe
     const sessionsDB = await getSessionsDB();
-    const session = await sessionsDB.findById(sessionId);
+    const session = await sessionsDB.findById(sessionId); // ✅ Chercher par string
     
     if (!session) {
       await fs.promises.unlink(req.file.path).catch(() => {});
       return res.status(404).json({ success: false, error: 'Session non trouvée' });
-    }
-
-    const precepteur = await precepteursDB.findOne({ user_id: req.user.id });
-    if (!precepteur) {
-      await fs.promises.unlink(req.file.path).catch(() => {});
-      return res.status(404).json({ success: false, error: 'Précepteur non trouvé' });
-    }
-
-    const contratsDB = new (require('../utils/database').JSONDatabase)('contracts.json');
-    await contratsDB.init();
-    const contrat = await contratsDB.findById(session.contract_id);
-    
-    if (!contrat || contrat.precepteur_id !== precepteur.id) {
-      await fs.promises.unlink(req.file.path).catch(() => {});
-      return res.status(403).json({ success: false, error: 'Non autorisé' });
     }
 
     // Déterminer le type de fichier
@@ -2670,8 +2736,7 @@ router.post('/precepteur/sessions/:id/files', authenticateToken, documentUpload.
 
     const sessionFilesDB = await getSessionFilesDB();
     const file = await sessionFilesDB.create({
-      session_id: sessionId,
-      titre: titre,
+      session_id: sessionId, // ✅ String
       file_name: req.file.originalname,
       file_path: relativePath,
       file_url: fullUrl,
@@ -2695,49 +2760,46 @@ router.post('/precepteur/sessions/:id/files', authenticateToken, documentUpload.
 // 🟢 RÉCUPÉRER LES FICHIERS D'UNE SESSION
 router.get('/precepteur/sessions/:id/files', authenticateToken, async (req, res) => {
   try {
-    if (req.user.role !== 'precepteur') {
-      return res.status(403).json({ success: false, error: 'Accès non autorisé' });
-    }
-
-    const sessionId = parseInt(req.params.id);
+    const sessionId = req.params.id; // ✅ Garder en string
 
     const sessionsDB = await getSessionsDB();
-    const session = await sessionsDB.findById(sessionId);
+    const session = await sessionsDB.findById(sessionId); // ✅ String
     
     if (!session) {
       return res.status(404).json({ success: false, error: 'Session non trouvée' });
     }
 
     const sessionFilesDB = await getSessionFilesDB();
-    const files = await sessionFilesDB.findAll({ session_id: sessionId });
-    
-    // Trier par date (plus récent d'abord)
+    let files = [];
+    try {
+      const allFiles = await sessionFilesDB.findAll();
+      // ✅ Filtrer par session_id en string
+      files = allFiles.filter(f => String(f.session_id) === String(sessionId));
+    } catch (err) {
+      return res.json({ success: true, files: [] });
+    }
+
     files.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
     res.json({ success: true, files });
   } catch (error) {
-    console.error('❌ Erreur récupération fichiers session:', error);
+    console.error('❌ Erreur récupération fichiers:', error);
     res.status(500).json({ success: false, error: 'Erreur serveur' });
   }
 });
 
-// 🟢 SUPPRIMER UN FICHIER D'UNE SESSION
+// 🟢 SUPPRIMER UN FICHIER
 router.delete('/precepteur/sessions/files/:id', authenticateToken, async (req, res) => {
   try {
-    if (req.user.role !== 'precepteur') {
-      return res.status(403).json({ success: false, error: 'Accès non autorisé' });
-    }
-
-    const fileId = parseInt(req.params.id);
+    const fileId = req.params.id; // ✅ Garder en string
 
     const sessionFilesDB = await getSessionFilesDB();
-    const file = await sessionFilesDB.findById(fileId);
+    const file = await sessionFilesDB.findById(fileId); // ✅ String
     
     if (!file) {
       return res.status(404).json({ success: false, error: 'Fichier non trouvé' });
     }
 
-    // Supprimer le fichier physique
     if (file.file_path) {
       const filePath = path.join(config.uploadPath, '..', file.file_path);
       await fs.promises.unlink(filePath).catch(err => {
@@ -2745,22 +2807,50 @@ router.delete('/precepteur/sessions/files/:id', authenticateToken, async (req, r
       });
     }
 
-    await sessionFilesDB.delete(fileId);
+    await sessionFilesDB.delete(fileId); // ✅ String
     res.json({ success: true });
   } catch (error) {
-    console.error('❌ Erreur suppression fichier session:', error);
+    console.error('❌ Erreur suppression fichier:', error);
     res.status(500).json({ success: false, error: 'Erreur serveur' });
   }
 });
 
-// 🟢 AJOUTER UNE NOTE DE COTATION
-router.post('/precepteur/sessions/:id/grades', authenticateToken, async (req, res) => {
+// ============ ROUTES COTATIONS (CORRIGÉES - IDs en string) ============
+
+// 🟢 RÉCUPÉRER LES COTATIONS D'UNE SESSION
+router.get('/precepteur/sessions/:id/grades', authenticateToken, async (req, res) => {
   try {
-    if (req.user.role !== 'precepteur') {
-      return res.status(403).json({ success: false, error: 'Accès non autorisé' });
+    const sessionId = req.params.id; // ✅ Garder en string
+
+    const sessionGradesDB = await getSessionGradesDB();
+    let grades = [];
+    try {
+      const allGrades = await sessionGradesDB.findAll();
+      // ✅ Filtrer par session_id en string
+      grades = allGrades.filter(g => String(g.session_id) === String(sessionId));
+    } catch (err) {
+      return res.json({ success: true, grades: [] });
     }
 
-    const sessionId = parseInt(req.params.id);
+    grades.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+    let moyenne = 0;
+    if (grades.length > 0) {
+      const total = grades.reduce((acc, g) => acc + (g.score / g.max_score) * 20, 0);
+      moyenne = total / grades.length;
+    }
+
+    res.json({ success: true, grades, total: grades.length, moyenne: Math.round(moyenne * 10) / 10 });
+  } catch (error) {
+    console.error('❌ Erreur récupération cotations:', error);
+    res.status(500).json({ success: false, error: 'Erreur serveur' });
+  }
+});
+
+// 🟢 AJOUTER UNE COTATION
+router.post('/precepteur/sessions/:id/grades', authenticateToken, async (req, res) => {
+  try {
+    const sessionId = req.params.id; // ✅ Garder en string
     const { titre, score, max_score, comment } = req.body;
 
     if (!titre || score === undefined || max_score === undefined) {
@@ -2768,7 +2858,7 @@ router.post('/precepteur/sessions/:id/grades', authenticateToken, async (req, re
     }
 
     const sessionsDB = await getSessionsDB();
-    const session = await sessionsDB.findById(sessionId);
+    const session = await sessionsDB.findById(sessionId); // ✅ String
     
     if (!session) {
       return res.status(404).json({ success: false, error: 'Session non trouvée' });
@@ -2776,7 +2866,7 @@ router.post('/precepteur/sessions/:id/grades', authenticateToken, async (req, re
 
     const sessionGradesDB = await getSessionGradesDB();
     const grade = await sessionGradesDB.create({
-      session_id: sessionId,
+      session_id: sessionId, // ✅ String
       titre,
       score: parseFloat(score),
       max_score: parseFloat(max_score),
@@ -2787,6 +2877,53 @@ router.post('/precepteur/sessions/:id/grades', authenticateToken, async (req, re
     res.status(201).json({ success: true, grade });
   } catch (error) {
     console.error('❌ Erreur ajout cotation:', error);
+    res.status(500).json({ success: false, error: 'Erreur serveur' });
+  }
+});
+
+// 🟢 MODIFIER UNE COTATION
+router.put('/precepteur/sessions/grades/:id', authenticateToken, async (req, res) => {
+  try {
+    const gradeId = req.params.id; // ✅ Garder en string
+    const { titre, score, max_score, comment } = req.body;
+
+    const sessionGradesDB = await getSessionGradesDB();
+    const grade = await sessionGradesDB.findById(gradeId); // ✅ String
+    
+    if (!grade) {
+      return res.status(404).json({ success: false, error: 'Cotation non trouvée' });
+    }
+
+    const updates = {};
+    if (titre !== undefined) updates.titre = titre;
+    if (score !== undefined) updates.score = parseFloat(score);
+    if (max_score !== undefined) updates.max_score = parseFloat(max_score);
+    if (comment !== undefined) updates.comment = comment || null;
+
+    await sessionGradesDB.update(gradeId, updates); // ✅ String
+    res.json({ success: true });
+  } catch (error) {
+    console.error('❌ Erreur modification cotation:', error);
+    res.status(500).json({ success: false, error: 'Erreur serveur' });
+  }
+});
+
+// 🟢 SUPPRIMER UNE COTATION
+router.delete('/precepteur/sessions/grades/:id', authenticateToken, async (req, res) => {
+  try {
+    const gradeId = req.params.id; // ✅ Garder en string
+
+    const sessionGradesDB = await getSessionGradesDB();
+    const grade = await sessionGradesDB.findById(gradeId); // ✅ String
+    
+    if (!grade) {
+      return res.status(404).json({ success: false, error: 'Cotation non trouvée' });
+    }
+
+    await sessionGradesDB.delete(gradeId); // ✅ String
+    res.json({ success: true });
+  } catch (error) {
+    console.error('❌ Erreur suppression cotation:', error);
     res.status(500).json({ success: false, error: 'Erreur serveur' });
   }
 });
@@ -2864,6 +3001,1064 @@ router.delete('/precepteur/sessions/grades/:id', authenticateToken, async (req, 
     res.json({ success: true });
   } catch (error) {
     console.error('❌ Erreur suppression cotation:', error);
+    res.status(500).json({ success: false, error: 'Erreur serveur' });
+  }
+});
+
+
+
+
+
+
+// ============ CORRECTIONS DANS auth.js ============
+
+// 🟢 RÉCUPÉRER UNE SESSION PAR ID (AJOUTER CETTE ROUTE SI ELLE N'EXISTE PAS)
+router.get('/precepteur/sessions/:id', authenticateToken, async (req, res) => {
+  try {
+    const sessionId = req.params.id; // ✅ Garder en string
+
+    const sessionsDB = await getSessionsDB();
+    const session = await sessionsDB.findById(sessionId); // ✅ String
+
+    if (!session) {
+      return res.status(404).json({ success: false, error: 'Session non trouvée' });
+    }
+
+    res.json({ success: true, session });
+  } catch (error) {
+    console.error('❌ Erreur récupération session:', error);
+    res.status(500).json({ success: false, error: 'Erreur serveur' });
+  }
+});
+
+// 🟢 METTRE À JOUR LE STATUT D'UNE SESSION (CORRIGÉE)
+router.patch('/precepteur/sessions/:id/status', authenticateToken, async (req, res) => {
+  try {
+    const sessionId = req.params.id; // ✅ Garder en string, NE PAS utiliser parseInt
+    const { statut } = req.body;
+
+    console.log('📝 Changement statut session:', { sessionId, statut });
+
+    const validStatuses = ['planifie', 'en_cours', 'termine', 'annule', 'reporte'];
+    if (!validStatuses.includes(statut)) {
+      return res.status(400).json({ success: false, error: 'Statut invalide' });
+    }
+
+    const sessionsDB = await getSessionsDB();
+    
+    // ✅ Chercher par ID string
+    const session = await sessionsDB.findById(sessionId);
+    
+    if (!session) {
+      console.log('❌ Session non trouvée:', sessionId);
+      return res.status(404).json({ success: false, error: 'Session non trouvée' });
+    }
+
+    console.log('✅ Session trouvée:', session.id, 'Statut actuel:', session.statut);
+
+    // Mettre à jour
+    await sessionsDB.update(sessionId, {
+      statut,
+      updated_at: new Date().toISOString()
+    });
+
+    console.log(`✅ Session ${sessionId}: ${session.statut} → ${statut}`);
+    res.json({ success: true, message: `Session ${statut.replace('_', ' ')} avec succès` });
+  } catch (error) {
+    console.error('❌ Erreur mise à jour statut session:', error);
+    res.status(500).json({ success: false, error: 'Erreur serveur' });
+  }
+});
+
+// 🟢 METTRE À JOUR LES NOTES D'UNE SESSION (CORRIGÉE)
+router.put('/precepteur/sessions/:id/notes', authenticateToken, async (req, res) => {
+  try {
+    const sessionId = req.params.id; // ✅ Garder en string
+    const { notes_precepteur } = req.body;
+
+    console.log('📝 Mise à jour notes session:', { sessionId });
+
+    const sessionsDB = await getSessionsDB();
+    
+    // ✅ Chercher par ID string
+    const session = await sessionsDB.findById(sessionId);
+    
+    if (!session) {
+      console.log('❌ Session non trouvée:', sessionId);
+      return res.status(404).json({ success: false, error: 'Session non trouvée' });
+    }
+
+    await sessionsDB.update(sessionId, {
+      notes_precepteur: notes_precepteur || null,
+      updated_at: new Date().toISOString()
+    });
+
+    console.log(`✅ Notes mises à jour pour session ${sessionId}`);
+    res.json({ success: true, message: 'Notes sauvegardées avec succès' });
+  } catch (error) {
+    console.error('❌ Erreur mise à jour notes:', error);
+    res.status(500).json({ success: false, error: 'Erreur serveur' });
+  }
+});
+
+
+// // 🟢 RÉCUPÉRER LES SESSIONS POUR UN PARENT
+// router.get('/parent/sessions', authenticateToken, async (req, res) => {
+//   try {
+//     if (req.user.role !== 'parent') {
+//       return res.status(403).json({ success: false, error: 'Accès réservé aux parents' });
+//     }
+
+//     // Trouver le parent
+//     const parentsDB = new (require('../utils/database').JSONDatabase)('parents.json');
+//     await parentsDB.init();
+//     const parent = await parentsDB.findOne({ user_id: req.user.id });
+    
+//     if (!parent) {
+//       return res.json({ success: true, sessions: [] });
+//     }
+
+//     // Récupérer les contrats du parent
+//     const contratsDB = new (require('../utils/database').JSONDatabase)('contracts.json');
+//     await contratsDB.init();
+//     const allContrats = await contratsDB.findAll();
+    
+//     const mesContrats = allContrats.filter(c => String(c.parent_id) === String(parent.id));
+    
+//     console.log(`📊 Contrats du parent ${parent.id}: ${mesContrats.length}`);
+
+//     if (mesContrats.length === 0) {
+//       return res.json({ success: true, sessions: [] });
+//     }
+
+//     const contratIds = mesContrats.map(c => String(c.id));
+
+//     // Récupérer toutes les sessions
+//     const sessionsDB = new (require('../utils/database').JSONDatabase)('sessions.json');
+//     await sessionsDB.init();
+//     let allSessions = [];
+    
+//     try {
+//       allSessions = await sessionsDB.findAll();
+//     } catch (err) {
+//       return res.json({ success: true, sessions: [] });
+//     }
+
+//     console.log(`📊 Total sessions dans la DB: ${allSessions.length}`);
+//     console.log(`📊 IDs contrats du parent:`, contratIds);
+    
+//     // Filtrer les sessions des contrats du parent
+//     const sessions = allSessions.filter(s => {
+//       const sessionContractId = String(s.contract_id);
+//       const match = contratIds.includes(sessionContractId);
+//       return match;
+//     });
+
+//     console.log(`✅ ${sessions.length} sessions trouvées pour le parent`);
+
+//     // Trier par date
+//     sessions.sort((a, b) => new Date(b.date_session).getTime() - new Date(a.date_session).getTime());
+
+//     // Enrichir avec les infos
+//     const elevesDB = new (require('../utils/database').JSONDatabase)('eleves.json');
+//     await elevesDB.init();
+//     const matieresDB = new (require('../utils/database').JSONDatabase)('matieres.json');
+//     await matieresDB.init();
+//     const usersDB = require('../utils/database').usersDB;
+
+//     const enriched = await Promise.all(sessions.map(async (session) => {
+//       const contrat = mesContrats.find(c => String(c.id) === String(session.contract_id));
+      
+//       let eleveInfo = null;
+//       let matiereInfo = null;
+//       let precepteurInfo = null;
+      
+//       if (contrat) {
+//         // Récupérer l'élève
+//         if (contrat.eleve_id) {
+//           eleveInfo = await elevesDB.findById(contrat.eleve_id);
+//         }
+        
+//         // Récupérer la matière
+//         if (contrat.matiere_id) {
+//           matiereInfo = await matieresDB.findById(contrat.matiere_id);
+//         }
+
+//         // Récupérer le précepteur
+//         const precepteursDB = require('../utils/database').precepteursDB;
+//         const precepteur = await precepteursDB.findById(contrat.precepteur_id);
+//         if (precepteur) {
+//           const precepteurUser = await usersDB.findById(precepteur.user_id);
+//           if (precepteurUser) {
+//             const { password, ...clean } = precepteurUser;
+//             precepteurInfo = {
+//               id: precepteur.id,
+//               username: clean.username,
+//               email: clean.email,
+//               telephone: clean.telephone,
+//               photo_profil: clean.photo_profil,
+//               commune: precepteur.commune,
+//               note_moyenne: precepteur.note_moyenne
+//             };
+//           }
+//         }
+//       }
+
+//       return {
+//         ...session,
+//         contrat: contrat ? {
+//           id: contrat.id,
+//           titre: contrat.titre,
+//           matiere: contrat.matiere,
+//           niveau: contrat.niveau,
+//           frequence: contrat.frequence,
+//           tarif_final: contrat.tarif_final,
+//           statut: contrat.statut
+//         } : null,
+//         eleve: eleveInfo,
+//         matiere: matiereInfo,
+//         precepteur: precepteurInfo
+//       };
+//     }));
+
+//     res.json({ success: true, sessions: enriched });
+//   } catch (error) {
+//     console.error('❌ Erreur sessions parent:', error);
+//     res.status(500).json({ success: false, error: 'Erreur serveur' });
+//   }
+// });
+// 🟢 RÉCUPÉRER LES SESSIONS POUR UN PARENT (AVEC FICHIERS ET COTATIONS)
+router.get('/parent/sessions', authenticateToken, async (req, res) => {
+  try {
+    if (req.user.role !== 'parent') {
+      return res.status(403).json({ success: false, error: 'Accès réservé aux parents' });
+    }
+
+    // Trouver le parent
+    const parentsDB = new (require('../utils/database').JSONDatabase)('parents.json');
+    await parentsDB.init();
+    const parent = await parentsDB.findOne({ user_id: req.user.id });
+    
+    if (!parent) {
+      return res.json({ success: true, sessions: [] });
+    }
+
+    // Récupérer les contrats du parent
+    const contratsDB = new (require('../utils/database').JSONDatabase)('contracts.json');
+    await contratsDB.init();
+    const allContrats = await contratsDB.findAll();
+    
+    const mesContrats = allContrats.filter(c => String(c.parent_id) === String(parent.id));
+    
+    console.log(`📊 Contrats du parent ${parent.id}: ${mesContrats.length}`);
+
+    if (mesContrats.length === 0) {
+      return res.json({ success: true, sessions: [] });
+    }
+
+    const contratIds = mesContrats.map(c => String(c.id));
+
+    // Récupérer toutes les sessions
+    const sessionsDB = new (require('../utils/database').JSONDatabase)('sessions.json');
+    await sessionsDB.init();
+    let allSessions = [];
+    
+    try {
+      allSessions = await sessionsDB.findAll();
+    } catch (err) {
+      return res.json({ success: true, sessions: [] });
+    }
+
+    console.log(`📊 Total sessions dans la DB: ${allSessions.length}`);
+    
+    // Filtrer les sessions des contrats du parent
+    const sessions = allSessions.filter(s => {
+      const sessionContractId = String(s.contract_id);
+      return contratIds.includes(sessionContractId);
+    });
+
+    console.log(`✅ ${sessions.length} sessions trouvées pour le parent`);
+
+    // Trier par date
+    sessions.sort((a, b) => new Date(b.date_session).getTime() - new Date(a.date_session).getTime());
+
+    // Initialiser les DBs pour l'enrichissement
+    const elevesDB = new (require('../utils/database').JSONDatabase)('eleves.json');
+    await elevesDB.init();
+    const matieresDB = new (require('../utils/database').JSONDatabase)('matieres.json');
+    await matieresDB.init();
+    
+    // ✅ Initialiser les DBs pour les fichiers et cotations
+    const sessionFilesDB = await getSessionFilesDB();
+    const sessionGradesDB = await getSessionGradesDB();
+    
+    // Récupérer tous les fichiers et cotations
+    let allFiles = [];
+    let allGrades = [];
+    
+    try {
+      allFiles = await sessionFilesDB.findAll();
+    } catch (err) {
+      console.warn('⚠️ Impossible de charger les fichiers:', err.message);
+    }
+    
+    try {
+      allGrades = await sessionGradesDB.findAll();
+    } catch (err) {
+      console.warn('⚠️ Impossible de charger les cotations:', err.message);
+    }
+
+    console.log(`📁 ${allFiles.length} fichiers chargés`);
+    console.log(`📝 ${allGrades.length} cotations chargées`);
+
+    // Enrichir chaque session
+    const enriched = await Promise.all(sessions.map(async (session) => {
+      const contrat = mesContrats.find(c => String(c.id) === String(session.contract_id));
+      
+      let eleveInfo = null;
+      let matiereInfo = null;
+      let precepteurInfo = null;
+      
+      if (contrat) {
+        // Récupérer l'élève
+        if (contrat.eleve_id) {
+          try {
+            eleveInfo = await elevesDB.findById(contrat.eleve_id);
+          } catch (err) {
+            console.warn(`⚠️ Élève non trouvé: ${contrat.eleve_id}`);
+          }
+        }
+        
+        // Récupérer la matière
+        if (contrat.matiere_id) {
+          try {
+            matiereInfo = await matieresDB.findById(contrat.matiere_id);
+          } catch (err) {
+            console.warn(`⚠️ Matière non trouvée: ${contrat.matiere_id}`);
+          }
+        }
+
+        // Récupérer le précepteur
+        try {
+          const precepteursDB = require('../utils/database').precepteursDB;
+          const precepteur = await precepteursDB.findById(contrat.precepteur_id);
+          if (precepteur) {
+            const precepteurUser = await usersDB.findById(precepteur.user_id);
+            if (precepteurUser) {
+              const { password, ...clean } = precepteurUser;
+              precepteurInfo = {
+                id: precepteur.id,
+                username: clean.username,
+                email: clean.email,
+                telephone: clean.telephone,
+                photo_profil: clean.photo_profil,
+                commune: precepteur.commune,
+                note_moyenne: precepteur.note_moyenne
+              };
+            }
+          }
+        } catch (err) {
+          console.warn(`⚠️ Précepteur non trouvé pour contrat ${contrat.id}`);
+        }
+      }
+
+      // ✅ Filtrer les fichiers de cette session
+      const sessionFiles = allFiles.filter(f => 
+        String(f.session_id) === String(session.id)
+      );
+      
+      // ✅ Filtrer les cotations de cette session
+      const sessionGrades = allGrades.filter(g => 
+        String(g.session_id) === String(session.id)
+      );
+
+      console.log(`📎 Session ${session.id}: ${sessionFiles.length} fichiers, ${sessionGrades.length} cotations`);
+
+      return {
+        ...session,
+        contrat: contrat ? {
+          id: contrat.id,
+          titre: contrat.titre,
+          matiere: contrat.matiere,
+          niveau: contrat.niveau,
+          frequence: contrat.frequence,
+          tarif_final: contrat.tarif_final,
+          statut: contrat.statut
+        } : null,
+        eleve: eleveInfo,
+        matiere: matiereInfo,
+        precepteur: precepteurInfo,
+        // ✅ Inclure les fichiers et cotations
+        files: sessionFiles,
+        grades: sessionGrades,
+        files_count: sessionFiles.length,
+        grades_count: sessionGrades.length
+      };
+    }));
+
+    console.log(`📤 Retourne ${enriched.length} sessions enrichies avec fichiers et cotations`);
+    
+    // Vérifier combien de sessions ont des fichiers/cotations
+    const sessionsWithFiles = enriched.filter(s => s.files && s.files.length > 0).length;
+    const sessionsWithGrades = enriched.filter(s => s.grades && s.grades.length > 0).length;
+    console.log(`  - ${sessionsWithFiles} sessions avec fichiers`);
+    console.log(`  - ${sessionsWithGrades} sessions avec cotations`);
+
+    res.json({ success: true, sessions: enriched });
+  } catch (error) {
+    console.error('❌ Erreur sessions parent:', error);
+    res.status(500).json({ success: false, error: 'Erreur serveur' });
+  }
+});
+
+
+// ============ ROUTES CANDIDATURES PARENTS → SERVICES PRÉCEPTEURS ============
+
+// Helper pour la DB candidatures_parents
+async function getCandidaturesParentsDB() {
+  const { JSONDatabase } = require('../utils/database');
+  const db = new JSONDatabase('candidatures_parents.json');
+  await db.init();
+  return db;
+}
+
+// 🟢 PARENT - POSTULER À UN SERVICE PRÉCEPTEUR
+router.post('/parent/candidatures', authenticateToken, async (req, res) => {
+  try {
+    if (req.user.role !== 'parent') {
+      return res.status(403).json({ success: false, error: 'Réservé aux parents' });
+    }
+
+    const { service_precepteur_id, eleve_id, message, tarif_propose } = req.body;
+
+    if (!service_precepteur_id || !eleve_id || !message) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'service_precepteur_id, eleve_id et message sont requis' 
+      });
+    }
+
+    // Trouver le parent
+    const parentsDB = new (require('../utils/database').JSONDatabase)('parents.json');
+    await parentsDB.init();
+    const parent = await parentsDB.findOne({ user_id: req.user.id });
+    
+    if (!parent) {
+      return res.status(404).json({ success: false, error: 'Parent non trouvé' });
+    }
+
+    // Vérifier que l'élève appartient au parent
+    const elevesDB = new (require('../utils/database').JSONDatabase)('eleves.json');
+    await elevesDB.init();
+    const eleve = await elevesDB.findById(eleve_id);
+    
+    if (!eleve || String(eleve.parent_id) !== String(parent.id)) {
+      return res.status(403).json({ success: false, error: 'Cet élève ne vous appartient pas' });
+    }
+
+    // Vérifier que le service existe
+    const servicesDB = new (require('../utils/database').JSONDatabase)('services_precepteur.json');
+    await servicesDB.init();
+    const service = await servicesDB.findById(service_precepteur_id);
+    
+    if (!service) {
+      return res.status(404).json({ success: false, error: 'Service non trouvé' });
+    }
+
+    // Vérifier si déjà postulé
+    const candidaturesDB = await getCandidaturesParentsDB();
+    const existing = await candidaturesDB.findOne({ 
+      service_precepteur_id: String(service_precepteur_id),
+      parent_id: String(parent.id)
+    });
+    
+    if (existing) {
+      return res.status(400).json({ success: false, error: 'Vous avez déjà postulé à ce service' });
+    }
+
+    const candidature = await candidaturesDB.create({
+      service_precepteur_id: String(service_precepteur_id),
+      parent_id: String(parent.id),
+      eleve_id: String(eleve_id),
+      message,
+      tarif_propose: tarif_propose || null,
+      statut: 'en_attente',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    });
+
+    console.log(`✅ Candidature parent créée: ${candidature.id}`);
+    res.status(201).json({ success: true, candidature });
+
+  } catch (error) {
+    console.error('❌ Erreur candidature parent:', error);
+    res.status(500).json({ success: false, error: 'Erreur serveur' });
+  }
+});
+
+// 🟢 PRÉCEPTEUR - VOIR LES CANDIDATURES REÇUES SUR MES SERVICES
+router.get('/precepteur/candidatures', authenticateToken, async (req, res) => {
+  try {
+    if (req.user.role !== 'precepteur') {
+      return res.status(403).json({ success: false, error: 'Réservé aux précepteurs' });
+    }
+
+    const precepteur = await precepteursDB.findOne({ user_id: req.user.id });
+    if (!precepteur) {
+      return res.json({ success: true, candidatures: [] });
+    }
+
+    // Récupérer les services du précepteur
+    const servicesDB = new (require('../utils/database').JSONDatabase)('services_precepteur.json');
+    await servicesDB.init();
+    const mesServices = await servicesDB.findAll({ precepteur_id: precepteur.id });
+    const serviceIds = mesServices.map(s => String(s.id));
+
+    if (serviceIds.length === 0) {
+      return res.json({ success: true, candidatures: [] });
+    }
+
+    // Récupérer les candidatures
+    const candidaturesDB = await getCandidaturesParentsDB();
+    const allCandidatures = await candidaturesDB.findAll();
+    
+    const candidatures = allCandidatures.filter(c => 
+      serviceIds.includes(String(c.service_precepteur_id))
+    );
+
+    // Enrichir
+    const parentsDB = new (require('../utils/database').JSONDatabase)('parents.json');
+    await parentsDB.init();
+    const elevesDB = new (require('../utils/database').JSONDatabase)('eleves.json');
+    await elevesDB.init();
+
+    const enriched = await Promise.all(candidatures.map(async (c) => {
+      const service = mesServices.find(s => String(s.id) === String(c.service_precepteur_id));
+      const parent = await parentsDB.findById(c.parent_id);
+      const eleve = await elevesDB.findById(c.eleve_id);
+      
+      let parentUser = null;
+      if (parent) {
+        const user = await usersDB.findById(parent.user_id);
+        if (user) {
+          const { password, ...clean } = user;
+          parentUser = clean;
+        }
+      }
+
+      return {
+        ...c,
+        service: service ? { id: service.id, titre: service.titre, tarif_horaire: service.tarif_horaire } : null,
+        parent: parent ? { ...parent, user: parentUser } : null,
+        eleve: eleve
+      };
+    }));
+
+    // Trier par date
+    enriched.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+    res.json({ success: true, candidatures: enriched });
+
+  } catch (error) {
+    console.error('❌ Erreur candidatures précepteur:', error);
+    res.status(500).json({ success: false, error: 'Erreur serveur' });
+  }
+});
+
+// 🟢 PARENT - VOIR MES CANDIDATURES
+router.get('/parent/candidatures', authenticateToken, async (req, res) => {
+  try {
+    if (req.user.role !== 'parent') {
+      return res.status(403).json({ success: false, error: 'Réservé aux parents' });
+    }
+
+    const parentsDB = new (require('../utils/database').JSONDatabase)('parents.json');
+    await parentsDB.init();
+    const parent = await parentsDB.findOne({ user_id: req.user.id });
+    
+    if (!parent) {
+      return res.json({ success: true, candidatures: [] });
+    }
+
+    const candidaturesDB = await getCandidaturesParentsDB();
+    const allCandidatures = await candidaturesDB.findAll();
+    
+    const mesCandidatures = allCandidatures.filter(c => 
+      String(c.parent_id) === String(parent.id)
+    );
+
+    // Enrichir
+    const servicesDB = new (require('../utils/database').JSONDatabase)('services_precepteur.json');
+    await servicesDB.init();
+    const elevesDB = new (require('../utils/database').JSONDatabase)('eleves.json');
+    await elevesDB.init();
+
+    const enriched = await Promise.all(mesCandidatures.map(async (c) => {
+      const service = await servicesDB.findById(c.service_precepteur_id);
+      const eleve = await elevesDB.findById(c.eleve_id);
+      
+      let precepteurInfo = null;
+      if (service) {
+        const precepteur = await precepteursDB.findById(service.precepteur_id);
+        if (precepteur) {
+          const user = await usersDB.findById(precepteur.user_id);
+          if (user) {
+            const { password, ...clean } = user;
+            precepteurInfo = { ...precepteur, user: clean };
+          }
+        }
+      }
+
+      return {
+        ...c,
+        service: service,
+        eleve: eleve,
+        precepteur: precepteurInfo
+      };
+    }));
+
+    enriched.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+    res.json({ success: true, candidatures: enriched });
+
+  } catch (error) {
+    console.error('❌ Erreur candidatures parent:', error);
+    res.status(500).json({ success: false, error: 'Erreur serveur' });
+  }
+});
+
+// 🟢 CHANGER LE STATUT D'UNE CANDIDATURE PARENT
+router.put('/parent/candidatures/:id/status', authenticateToken, async (req, res) => {
+  try {
+    const { statut } = req.body;
+    
+    if (!['accepte', 'refuse'].includes(statut)) {
+      return res.status(400).json({ success: false, error: 'Statut invalide. Utilisez: accepte, refuse' });
+    }
+
+    const candidaturesDB = await getCandidaturesParentsDB();
+    const candidature = await candidaturesDB.findById(req.params.id);
+    
+    if (!candidature) {
+      return res.status(404).json({ success: false, error: 'Candidature non trouvée' });
+    }
+
+    // Vérifier que le précepteur est propriétaire du service
+    const servicesDB = new (require('../utils/database').JSONDatabase)('services_precepteur.json');
+    await servicesDB.init();
+    const service = await servicesDB.findById(candidature.service_precepteur_id);
+    
+    if (!service) {
+      return res.status(404).json({ success: false, error: 'Service non trouvé' });
+    }
+
+    const precepteur = await precepteursDB.findOne({ user_id: req.user.id });
+    if (!precepteur || String(service.precepteur_id) !== String(precepteur.id)) {
+      return res.status(403).json({ success: false, error: 'Non autorisé' });
+    }
+
+    await candidaturesDB.update(req.params.id, {
+      statut,
+      updated_at: new Date().toISOString()
+    });
+
+    console.log(`✅ Candidature parent ${req.params.id} -> ${statut}`);
+    res.json({ success: true, message: `Candidature ${statut}` });
+
+  } catch (error) {
+    console.error('❌ Erreur statut candidature:', error);
+    res.status(500).json({ success: false, error: 'Erreur serveur' });
+  }
+});
+
+// 🟢 CRÉER UN CONTRAT DEPUIS UNE CANDIDATURE PARENT
+router.post('/parent/candidatures/:id/contrat', authenticateToken, async (req, res) => {
+  try {
+    if (req.user.role !== 'precepteur') {
+      return res.status(403).json({ success: false, error: 'Réservé aux précepteurs' });
+    }
+
+    const candidatureId = req.params.id;
+    const { date_debut, duree, tarif_final, notes } = req.body;
+
+    if (!date_debut) {
+      return res.status(400).json({ success: false, error: 'date_debut est requis' });
+    }
+
+    // Récupérer la candidature
+    const candidaturesDB = await getCandidaturesParentsDB();
+    const candidature = await candidaturesDB.findById(candidatureId);
+    
+    if (!candidature) {
+      return res.status(404).json({ success: false, error: 'Candidature non trouvée' });
+    }
+
+    // Récupérer le service
+    const servicesDB = new (require('../utils/database').JSONDatabase)('services_precepteur.json');
+    await servicesDB.init();
+    const service = await servicesDB.findById(candidature.service_precepteur_id);
+    
+    if (!service) {
+      return res.status(404).json({ success: false, error: 'Service non trouvé' });
+    }
+
+    // Vérifier que le précepteur est propriétaire
+    const precepteur = await precepteursDB.findOne({ user_id: req.user.id });
+    if (!precepteur || String(service.precepteur_id) !== String(precepteur.id)) {
+      return res.status(403).json({ success: false, error: 'Non autorisé' });
+    }
+
+    // Créer le contrat
+    const contractsDB = new (require('../utils/database').JSONDatabase)('contracts.json');
+    await contractsDB.init();
+
+    const contrat = await contractsDB.create({
+      service_precepteur_id: candidature.service_precepteur_id,
+      parent_id: candidature.parent_id,
+      precepteur_id: precepteur.id,
+      titre: service.titre,
+      matiere: null,
+      niveau: '',
+      frequence: 'hebdomadaire',
+      lieu: service.modalite === 'presentiel' ? 'Domicile' : 'En ligne',
+      date_debut,
+      duree: duree || '1_mois',
+      tarif_final: tarif_final || candidature.tarif_propose || service.tarif_horaire || 0,
+      notes: notes || null,
+      statut: 'en_attente',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    });
+
+    // Mettre à jour le statut de la candidature
+    await candidaturesDB.update(candidatureId, {
+      statut: 'accepte',
+      updated_at: new Date().toISOString()
+    });
+
+    console.log(`✅ Contrat créé depuis candidature parent: ${contrat.id}`);
+    res.status(201).json({ success: true, contrat });
+
+  } catch (error) {
+    console.error('❌ Erreur création contrat:', error);
+    res.status(500).json({ success: false, error: 'Erreur serveur' });
+  }
+});
+
+
+// ============ ROUTES NOTATION PRÉCEPTEUR ============
+
+// Helper pour la DB ratings
+async function getRatingsDB() {
+  const { JSONDatabase } = require('../utils/database');
+  const db = new JSONDatabase('precepteur_ratings.json');
+  await db.init();
+  return db;
+}
+
+// 🟢 CRÉER OU MODIFIER UNE NOTE POUR UN PRÉCEPTEUR (par un parent)
+router.post('/precepteur/ratings', authenticateToken, async (req, res) => {
+  try {
+    // Vérifier que c'est un parent
+    if (req.user.role !== 'parent') {
+      return res.status(403).json({ success: false, error: 'Seuls les parents peuvent noter un précepteur' });
+    }
+
+    const { contract_id, precepteur_id, note, commentaire } = req.body;
+
+    // Validation
+    if (!contract_id || !precepteur_id || !note) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'contract_id, precepteur_id et note sont requis' 
+      });
+    }
+
+    if (note < 1 || note > 5 || !Number.isInteger(note)) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'La note doit être un entier entre 1 et 5' 
+      });
+    }
+
+    // Trouver le parent
+    const parentsDB = new (require('../utils/database').JSONDatabase)('parents.json');
+    await parentsDB.init();
+    const parent = await parentsDB.findOne({ user_id: req.user.id });
+    
+    if (!parent) {
+      return res.status(404).json({ success: false, error: 'Parent non trouvé' });
+    }
+
+    // Vérifier que le contrat existe et appartient au parent
+    const contratsDB = new (require('../utils/database').JSONDatabase)('contracts.json');
+    await contratsDB.init();
+    const contrat = await contratsDB.findById(String(contract_id));
+    
+    if (!contrat) {
+      return res.status(404).json({ success: false, error: 'Contrat non trouvé' });
+    }
+
+    if (String(contrat.parent_id) !== String(parent.id)) {
+      return res.status(403).json({ success: false, error: 'Ce contrat ne vous appartient pas' });
+    }
+
+    // Vérifier que le précepteur existe
+    const precepteur = await precepteursDB.findById(String(precepteur_id));
+    if (!precepteur) {
+      return res.status(404).json({ success: false, error: 'Précepteur non trouvé' });
+    }
+
+    // Vérifier si le parent a déjà noté ce contrat
+    const ratingsDB = await getRatingsDB();
+    const existingRating = await ratingsDB.findOne({ 
+      contract_id: String(contract_id),
+      parent_id: String(parent.id)
+    });
+
+    if (existingRating) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Vous avez déjà noté ce contrat. Utilisez PUT pour modifier.' 
+      });
+    }
+
+    // Créer la note
+    const rating = await ratingsDB.create({
+      contract_id: String(contract_id),
+      precepteur_id: String(precepteur_id),
+      parent_id: String(parent.id),
+      note,
+      commentaire: commentaire || null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    });
+
+    // Mettre à jour la note moyenne du précepteur
+    await updatePrecepteurAverageRating(String(precepteur_id));
+
+    console.log(`✅ Note créée: ${rating.id} - ${note}/5 pour précepteur ${precepteur_id}`);
+    
+    res.status(201).json({ success: true, rating });
+
+  } catch (error) {
+    console.error('❌ Erreur création note:', error);
+    res.status(500).json({ success: false, error: 'Erreur serveur' });
+  }
+});
+
+// 🟢 MODIFIER UNE NOTE EXISTANTE
+router.put('/precepteur/ratings/:id', authenticateToken, async (req, res) => {
+  try {
+    if (req.user.role !== 'parent') {
+      return res.status(403).json({ success: false, error: 'Seuls les parents peuvent modifier une note' });
+    }
+
+    const ratingId = req.params.id;
+    const { note, commentaire } = req.body;
+
+    if (note && (note < 1 || note > 5 || !Number.isInteger(note))) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'La note doit être un entier entre 1 et 5' 
+      });
+    }
+
+    const ratingsDB = await getRatingsDB();
+    const rating = await ratingsDB.findById(ratingId);
+    
+    if (!rating) {
+      return res.status(404).json({ success: false, error: 'Note non trouvée' });
+    }
+
+    // Vérifier que le parent est le propriétaire
+    const parentsDB = new (require('../utils/database').JSONDatabase)('parents.json');
+    await parentsDB.init();
+    const parent = await parentsDB.findOne({ user_id: req.user.id });
+    
+    if (!parent || String(rating.parent_id) !== String(parent.id)) {
+      return res.status(403).json({ success: false, error: 'Non autorisé' });
+    }
+
+    // Mettre à jour
+    const updates = {
+      updated_at: new Date().toISOString()
+    };
+    if (note) updates.note = note;
+    if (commentaire !== undefined) updates.commentaire = commentaire;
+
+    await ratingsDB.update(ratingId, updates);
+
+    // Mettre à jour la note moyenne du précepteur
+    await updatePrecepteurAverageRating(String(rating.precepteur_id));
+
+    console.log(`✅ Note modifiée: ${ratingId}`);
+    
+    res.json({ success: true, message: 'Note modifiée avec succès' });
+
+  } catch (error) {
+    console.error('❌ Erreur modification note:', error);
+    res.status(500).json({ success: false, error: 'Erreur serveur' });
+  }
+});
+
+// 🟢 RÉCUPÉRER LES NOTES D'UN PRÉCEPTEUR (par precepteur_id)
+router.get('/precepteur/ratings/:precepteurId', async (req, res) => {
+  try {
+    const ratingsDB = await getRatingsDB();
+    const allRatings = await ratingsDB.findAll();
+    
+    const ratings = allRatings.filter(r => 
+      String(r.precepteur_id) === String(req.params.precepteurId)
+    );
+
+    // Calculer la moyenne
+    const moyenne = ratings.length > 0 
+      ? ratings.reduce((acc, r) => acc + r.note, 0) / ratings.length 
+      : 0;
+
+    res.json({ 
+      success: true, 
+      ratings,
+      total: ratings.length,
+      moyenne: Math.round(moyenne * 10) / 10
+    });
+
+  } catch (error) {
+    console.error('❌ Erreur récupération notes:', error);
+    res.status(500).json({ success: false, error: 'Erreur serveur' });
+  }
+});
+
+// 🟢 RÉCUPÉRER LA NOTE D'UN PARENT POUR UN CONTRAT SPÉCIFIQUE
+router.get('/precepteur/ratings', authenticateToken, async (req, res) => {
+  try {
+    const { contract_id } = req.query;
+
+    if (!contract_id) {
+      return res.status(400).json({ success: false, error: 'contract_id est requis' });
+    }
+
+    // Trouver le parent
+    const parentsDB = new (require('../utils/database').JSONDatabase)('parents.json');
+    await parentsDB.init();
+    const parent = await parentsDB.findOne({ user_id: req.user.id });
+
+    if (!parent) {
+      return res.json({ success: true, rating: null });
+    }
+
+    const ratingsDB = await getRatingsDB();
+    const rating = await ratingsDB.findOne({ 
+      contract_id: String(contract_id),
+      parent_id: String(parent.id)
+    });
+
+    res.json({ success: true, rating: rating || null });
+
+  } catch (error) {
+    console.error('❌ Erreur récupération note:', error);
+    res.status(500).json({ success: false, error: 'Erreur serveur' });
+  }
+});
+
+// Helper pour mettre à jour la note moyenne du précepteur
+async function updatePrecepteurAverageRating(precepteurId) {
+  try {
+    const ratingsDB = await getRatingsDB();
+    const allRatings = await ratingsDB.findAll();
+    
+    const precepteurRatings = allRatings.filter(r => 
+      String(r.precepteur_id) === String(precepteurId)
+    );
+
+    const moyenne = precepteurRatings.length > 0
+      ? precepteurRatings.reduce((acc, r) => acc + r.note, 0) / precepteurRatings.length
+      : 0;
+
+    await precepteursDB.update(precepteurId, {
+      note_moyenne: Math.round(moyenne * 10) / 10,
+      updated_at: new Date().toISOString()
+    });
+
+    console.log(`📊 Note moyenne mise à jour pour précepteur ${precepteurId}: ${Math.round(moyenne * 10) / 10}/5`);
+  } catch (error) {
+    console.error('❌ Erreur mise à jour note moyenne:', error);
+  }
+}
+
+// routes/auth.js - Ajouter ces routes
+
+// 🟢 PARENT - RÉCUPÉRER LE PROFIL PARENT
+router.get('/parent/profile', authenticateToken, async (req, res) => {
+  try {
+    if (req.user.role !== 'parent') {
+      return res.status(403).json({ success: false, error: 'Réservé aux parents' });
+    }
+
+    const parentsDB = new (require('../utils/database').JSONDatabase)('parents.json');
+    await parentsDB.init();
+    
+    const parent = await parentsDB.findOne({ user_id: req.user.id });
+    
+    if (!parent) {
+      return res.status(404).json({ success: false, error: 'Profil parent non trouvé' });
+    }
+
+    res.json({ success: true, profile: parent });
+  } catch (error) {
+    console.error('❌ Erreur récupération profil parent:', error);
+    res.status(500).json({ success: false, error: 'Erreur serveur' });
+  }
+});
+
+// 🟢 PARENT - METTRE À JOUR LE PROFIL PARENT
+router.put('/parent/profile', authenticateToken, async (req, res) => {
+  try {
+    if (req.user.role !== 'parent') {
+      return res.status(403).json({ success: false, error: 'Réservé aux parents' });
+    }
+
+    const { telephone, adresse, commune, quartier } = req.body;
+
+    const parentsDB = new (require('../utils/database').JSONDatabase)('parents.json');
+    await parentsDB.init();
+    
+    let parent = await parentsDB.findOne({ user_id: req.user.id });
+    
+    if (!parent) {
+      // Créer le profil parent s'il n'existe pas
+      parent = await parentsDB.create({
+        user_id: req.user.id,
+        telephone: telephone || null,
+        adresse: adresse || null,
+        commune: commune || null,
+        quartier: quartier || null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      });
+    } else {
+      // Mettre à jour
+      await parentsDB.update(parent.id, {
+        telephone: telephone || null,
+        adresse: adresse || null,
+        commune: commune || null,
+        quartier: quartier || null,
+        updated_at: new Date().toISOString()
+      });
+      
+      parent = await parentsDB.findById(parent.id);
+    }
+
+    console.log(`✅ Profil parent mis à jour pour ${req.user.id}`);
+    
+    res.json({ 
+      success: true, 
+      profile: parent,
+      message: 'Profil mis à jour avec succès'
+    });
+  } catch (error) {
+    console.error('❌ Erreur mise à jour profil parent:', error);
     res.status(500).json({ success: false, error: 'Erreur serveur' });
   }
 });

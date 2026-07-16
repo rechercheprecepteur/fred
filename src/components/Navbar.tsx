@@ -79,7 +79,7 @@ const getNavLinks = (role: string): NavLink[] => [
   },
   {
     href: '/solicitation',
-    label: 'Solicitations',
+    label: 'Rechercher éleves',
     icon: <PiFileText className="w-4 h-4" />,
     roles: ['precepteur']
   },

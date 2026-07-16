@@ -1,0 +1,50 @@
+[
+  {
+    "id": "17841748788012onjhgsss",
+    "created_at": "2026-07-16T04:07:58.801Z",
+    "updated_at": "2026-07-16T04:07:58.801Z",
+    "session_id": "1784174576621izkedmmo9",
+    "file_name": "attestation Cnss.jpg",
+    "file_path": "/uploads/sessions/1784174576621izkedmmo9/doc-1784174878791-169693468.jpg",
+    "file_url": "http://localhost:3001/uploads/sessions/1784174576621izkedmmo9/doc-1784174878791-169693468.jpg",
+    "file_type": "image",
+    "file_size": 49499,
+    "uploaded_by": "precepteur"
+  },
+  {
+    "id": "1784177003633y6s5cqip4",
+    "created_at": "2026-07-16T04:43:23.633Z",
+    "updated_at": "2026-07-16T04:43:23.633Z",
+    "session_id": "1784176982118ye5m2e1x2",
+    "file_name": "rccm.jpg",
+    "file_path": "/uploads/sessions/1784176982118ye5m2e1x2/doc-1784177003620-148250944.jpg",
+    "file_url": "http://localhost:3001/uploads/sessions/1784176982118ye5m2e1x2/doc-1784177003620-148250944.jpg",
+    "file_type": "image",
+    "file_size": 135576,
+    "uploaded_by": "precepteur"
+  },
+  {
+    "id": "1784209915310smvvxqm2a",
+    "created_at": "2026-07-16T13:51:55.310Z",
+    "updated_at": "2026-07-16T13:51:55.310Z",
+    "session_id": "1784209885046m2bmhbbkl",
+    "file_name": "attestation Cnss.jpg",
+    "file_path": "/uploads/sessions/1784209885046m2bmhbbkl/doc-1784209915298-99115799.jpg",
+    "file_url": "http://localhost:3001/uploads/sessions/1784209885046m2bmhbbkl/doc-1784209915298-99115799.jpg",
+    "file_type": "image",
+    "file_size": 49499,
+    "uploaded_by": "precepteur"
+  },
+  {
+    "id": "1784209966154s40m663nb",
+    "created_at": "2026-07-16T13:52:46.154Z",
+    "updated_at": "2026-07-16T13:52:46.154Z",
+    "session_id": "1784209885046m2bmhbbkl",
+    "file_name": "pexels-thirdman-5490584.jpg",
+    "file_path": "/uploads/sessions/1784209885046m2bmhbbkl/doc-1784209966082-832116921.jpg",
+    "file_url": "http://localhost:3001/uploads/sessions/1784209885046m2bmhbbkl/doc-1784209966082-832116921.jpg",
+    "file_type": "image",
+    "file_size": 2413639,
+    "uploaded_by": "precepteur"
+  }
+]

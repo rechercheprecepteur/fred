@@ -84,40 +84,6 @@ export async function serverFetch(
   }
 }
 
-/**
- * Upload de fichier depuis le serveur
- */
-// export async function serverUpload(
-//   endpoint: string,
-//   formData: FormData
-// ): Promise<any> {
-//   const token = await getServerToken();
-//   const url = `${API_URL}${endpoint}`;
-  
-//   const headers: Record<string, string> = {};
-//   if (token) {
-//     headers['Authorization'] = `Bearer ${token}`;
-//   }
-  
-//   try {
-//     const response = await fetch(url, {
-//       method: 'PUT',
-//       headers,
-//       body: formData,
-//       cache: 'no-store',
-//     });
-    
-//     const data = await response.json();
-//     if (!response.ok) throw { message: data.error, status: response.status };
-//     return data;
-//   } catch (error: any) {
-//     if (error.message && error.status) throw error;
-//     throw { message: 'Erreur lors de l\'upload', status: 500 };
-//   }
-// }
-// src/lib/server-api.ts
-
-// ... (autres fonctions inchangées)
 
 /**
  * Upload de fichier depuis le serveur - VERSION CORRIGÉE
