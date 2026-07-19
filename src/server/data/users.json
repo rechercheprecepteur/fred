@@ -80,5 +80,19 @@
     "verification_code": "786606",
     "verification_code_expires": "2026-07-16T14:29:39.535Z",
     "photo_profil": null
+  },
+  {
+    "id": "17843665465392y49h4hil",
+    "created_at": "2026-07-18T09:22:26.539Z",
+    "updated_at": "2026-07-18T09:22:26.539Z",
+    "email": "marc@gmail.com",
+    "password": "$2b$10$Nz1TuTda3Lg0evBKiu3qquqkTpZKX1ZmMCKhIrp5oEfeBXxODjLaW",
+    "username": "Marc",
+    "role": "precepteur",
+    "genre": "homme",
+    "email_verified": true,
+    "verification_code": "631580",
+    "verification_code_expires": "2026-07-19T09:22:26.539Z",
+    "photo_profil": null
   }
 ]
