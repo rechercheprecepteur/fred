@@ -6623,24 +6623,7 @@ export default function PrecepteurDashboard() {
         </div>
       )}
 
-      {/* Message profil incomplet */}
-      {precepteurInfo && (!precepteurInfo.commune || !precepteurInfo.quartier || !precepteurInfo.diplome || !precepteurInfo.etablissement_origine || precepteurInfo.annees_experience === 0 || precepteurInfo.statut_verification === 'en_attente' || precepteurInfo.statut_verification === 'rejete') && (
-        <div className="mb-6 bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
-          <div className="flex-shrink-0 mt-0.5"><AlertCircle className="w-5 h-5 text-amber-600" /></div>
-          <div className="flex-1">
-            <h3 className="text-sm font-semibold text-amber-800 mb-1">
-              {precepteurInfo.statut_verification === 'rejete' ? 'Votre dossier a été rejeté' : precepteurInfo.statut_verification === 'en_attente' ? 'Votre dossier est en attente de vérification' : 'Profil incomplet'}
-            </h3>
-            <p className="text-sm text-amber-700">
-              {precepteurInfo.statut_verification === 'rejete' ? 'Votre dossier a été rejeté. Veuillez mettre à jour vos informations.' : 'Complétez votre profil pour apparaître dans les recherches.'}
-            </p>
-            <button onClick={openModal} className="mt-3 px-4 py-2 bg-amber-600 text-white text-sm rounded-lg hover:bg-amber-700 transition-colors flex items-center gap-2">
-              <Edit3 className="w-4 h-4" /> Modifier le profil
-            </button>
-          </div>
-        </div>
-      )}
-
+     
       {/* ========== CARD PROFIL ========== */}
       <div className="bg-white rounded-2xl mb-6 p-6">
         <div className="flex flex-col md:flex-row md:items-start gap-6 mb-6">
